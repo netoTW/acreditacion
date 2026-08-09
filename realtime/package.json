@@ -1,0 +1,21 @@
+{
+  "name": "somos-calidad-realtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Spike de la Plaza Virtual — servidor de estado agnostico del render (ADR-004)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@colyseus/schema": "^2.0.0",
+    "@colyseus/ws-transport": "^0.15.0",
+    "colyseus": "^0.15.0",
+    "colyseus.js": "^0.15.0",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

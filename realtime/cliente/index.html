@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Plaza Virtual · spike</title>
+<style>
+:root{
+  --tinta:#2B0B1E; --tinta-2:#3D1229; --carmin:#E11D3C; --oro:#F4B740;
+  --menta:#2DD4A7; --marfil:#FBF7F5; --niebla:#8A7A83; --linea-osc:rgba(255,255,255,.10);
+  --body:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--body);background:var(--marfil);color:var(--tinta);line-height:1.5}
+.envoltura{max-width:1180px;margin:0 auto;padding:20px 16px 40px}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+h1{font-size:22px;letter-spacing:-.02em}
+.etiqueta{font-family:var(--mono);font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--carmin);border:1px solid currentColor;border-radius:3px;padding:2px 8px}
+.escenario{background:var(--tinta);border-radius:24px;padding:16px;position:relative}
+.barra{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;color:#fff}
+.punto{width:9px;height:9px;border-radius:50%;background:var(--niebla);flex:none}
+.punto.vivo{background:var(--menta);box-shadow:0 0 0 4px rgba(45,212,167,.25)}
+.estado{font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.72)}
+.conteo{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--oro);font-weight:700}
+.hablar{display:flex;gap:10px;margin-top:14px}
+.hablar input{flex:1;padding:12px 16px;border:1px solid var(--linea-osc);border-radius:24px;
+  font-family:inherit;font-size:15px;background:rgba(0,0,0,.3);color:#fff}
+.hablar input::placeholder{color:rgba(255,255,255,.4)}
+.hablar input:focus{outline:2px solid var(--oro);border-color:transparent}
+.hablar button{padding:0 22px;border:none;border-radius:24px;background:var(--oro);
+  color:var(--tinta);font-family:inherit;font-weight:700;font-size:15px;cursor:pointer}
+.pista{text-align:center;color:rgba(255,255,255,.45);font-size:12px;margin-top:10px;font-family:var(--mono)}
+.portada{position:absolute;inset:0;background:rgba(43,11,30,.96);border-radius:24px;
+  display:grid;place-items:center;padding:24px;z-index:5}
+.tarjeta{background:#fff;border-radius:20px;padding:28px;width:100%;max-width:380px}
+.tarjeta h2{font-size:20px;margin-bottom:6px;letter-spacing:-.02em}
+.tarjeta p{color:var(--niebla);font-size:13.5px;margin-bottom:18px}
+.campo{margin-bottom:12px}
+.campo label{display:block;font-size:12px;font-weight:600;margin-bottom:6px}
+.campo input,.campo select{width:100%;padding:12px 14px;border:1px solid #ECE2E6;
+  border-radius:11px;font-family:inherit;font-size:15px;background:var(--marfil);color:var(--tinta)}
+.campo input:focus,.campo select:focus{outline:2px solid var(--carmin);border-color:transparent}
+.entrar{width:100%;padding:13px;border:none;border-radius:12px;background:var(--carmin);
+  color:#fff;font-family:inherit;font-weight:600;font-size:15px;cursor:pointer;margin-top:6px}
+.gates{margin-top:24px;font-size:13.5px;color:var(--niebla)}
+.gates h3{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--tinta);margin-bottom:10px}
+.gates li{list-style:none;padding:7px 0;border-bottom:1px solid #ECE2E6;display:flex;gap:10px}
+.gates li:last-child{border:none}
+.gates code{font-family:var(--mono);font-size:11.5px;color:var(--carmin);font-weight:700;flex:none}
+@media (max-width:700px){ .envoltura{padding:12px 10px 30px} .escenario{padding:10px;border-radius:16px} }
+</style>
+</head>
+<body>
+<div class="envoltura">
+  <header>
+    <h1>Plaza Virtual</h1>
+    <span class="etiqueta">Spike · Track A</span>
+  </header>
+
+  <div class="escenario">
+    <div class="barra">
+      <span class="punto" id="punto"></span>
+      <span class="estado" id="estado">sin conectar</span>
+      <span class="conteo" id="conteo">0 conectados</span>
+    </div>
+
+    <div id="lienzo"></div>
+
+    <div class="hablar">
+      <input id="entradaChat" maxlength="80" placeholder="Di algo… tu personaje hablará en la sala" autocomplete="off">
+      <button id="botonHablar">Hablar</button>
+    </div>
+    <div class="pista">Toca el salón para caminar · escribe abajo para hablar</div>
+
+    <div class="portada" id="portada">
+      <div class="tarjeta">
+        <h2>Entrar a la Plaza</h2>
+        <p>Spike de sincronización. Abre esto en dos dispositivos distintos para el gate A4.</p>
+        <div class="campo">
+          <label for="nombre">Tu nombre</label>
+          <input id="nombre" maxlength="24" placeholder="Pablo" autocomplete="off">
+        </div>
+        <div class="campo">
+          <label for="cargo">Cargo</label>
+          <select id="cargo">
+            <option>Rector</option>
+            <option>Vicerrector Académico</option>
+            <option>Director de Carrera</option>
+            <option selected>Docente</option>
+            <option>Coordinador de Calidad</option>
+            <option>Administrativo</option>
+          </select>
+        </div>
+        <button class="entrar" id="botonEntrar">Entrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="gates">
+    <h3>Gates de este track</h3>
+    <ul>
+      <li><code>A2</code> Dos clientes en la misma máquina se ven.</li>
+      <li><code>A3</code> Mover un avatar se refleja en el otro cliente.</li>
+      <li><code>A4</code> Dos dispositivos reales, fuera de localhost, por túnel. Hasta acá, ningún plazo es firme.</li>
+      <li><code>A5</code> El chat llega y la presencia es real.</li>
+      <li><code>A6</code> Un cliente refresca y vuelve sin romper la sala.</li>
+      <li><code>A7</code> Los tres dispositivos a la vez.</li>
+    </ul>
+  </div>
+</div>
+
+<script src="/vendor/colyseus.js"></script>
+<script type="module">
+import { crearRenderCanvas2D } from "./render-canvas-2d.js";
+
+const $ = (id) => document.getElementById(id);
+const protocolo = location.protocol === "https:" ? "wss" : "ws";
+const cliente = new Colyseus.Client(`${protocolo}://${location.host}`);
+
+let sala = null;
+let render = null;
+
+function fijarEstado(texto, vivo) {
+  $("estado").textContent = texto;
+  $("punto").classList.toggle("vivo", !!vivo);
+}
+
+async function entrar() {
+  const nombre = $("nombre").value.trim() || "Invitado";
+  const cargo = $("cargo").value;
+  $("botonEntrar").disabled = true;
+  fijarEstado("conectando…", false);
+
+  try {
+    sala = await cliente.joinOrCreate("plaza", { nombre, cargo });
+  } catch (e) {
+    fijarEstado("no se pudo conectar: " + e.message, false);
+    $("botonEntrar").disabled = false;
+    return;
+  }
+
+  $("portada").style.display = "none";
+  fijarEstado(`conectado como ${nombre}`, true);
+
+  // ADR-004: se monta UN render. Cambiar a 3D es cambiar esta línea.
+  render = crearRenderCanvas2D();
+  render.montar($("lienzo"), {
+    miId: sala.sessionId,
+    mundo: { ancho: sala.state.anchoMundo || 9, alto: sala.state.altoMundo || 9 },
+  });
+
+  render.alDestino(({ x, y }) => sala.send("mover", { x, y }));
+
+  sala.onStateChange((estado) => {
+    const lista = [];
+    estado.participantes.forEach((p) => {
+      lista.push({
+        id: p.id, nombre: p.nombre, color: p.color,
+        x: p.x, y: p.y, rot: p.rot, mensaje: p.mensaje,
+      });
+    });
+    render.aplicarEstado(lista);
+    $("conteo").textContent = `${lista.length} conectado${lista.length === 1 ? "" : "s"}`;
+  });
+
+  sala.onLeave((codigo) => {
+    fijarEstado(`desconectado (${codigo})`, false);
+  });
+}
+
+function hablar() {
+  const entrada = $("entradaChat");
+  const texto = entrada.value.trim();
+  if (!texto || !sala) return;
+  sala.send("decir", { texto });
+  entrada.value = "";
+}
+
+$("botonEntrar").addEventListener("click", entrar);
+$("nombre").addEventListener("keydown", (e) => { if (e.key === "Enter") entrar(); });
+$("botonHablar").addEventListener("click", hablar);
+$("entradaChat").addEventListener("keydown", (e) => { if (e.key === "Enter") hablar(); });
+</script>
+</body>
+</html>
