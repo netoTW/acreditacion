@@ -32,6 +32,12 @@ h1{font-size:22px;letter-spacing:-.02em}
 .hablar button{padding:0 22px;border:none;border-radius:24px;background:var(--oro);
   color:var(--tinta);font-family:inherit;font-weight:700;font-size:15px;cursor:pointer}
 .pista{text-align:center;color:rgba(255,255,255,.45);font-size:12px;margin-top:10px;font-family:var(--mono)}
+.aviso{display:none;background:var(--carmin);color:#fff;border-radius:12px;padding:12px 16px;
+  margin-bottom:12px;font-size:13.5px;line-height:1.45}
+.aviso.visible{display:block}
+.aviso code{font-family:var(--mono);font-size:12px;background:rgba(0,0,0,.25);padding:1px 5px;border-radius:4px}
+.destino{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.5);
+  width:100%;order:9;padding-top:2px;word-break:break-all}
 .portada{position:absolute;inset:0;background:rgba(43,11,30,.96);border-radius:24px;
   display:grid;place-items:center;padding:24px;z-index:5}
 .tarjeta{background:#fff;border-radius:20px;padding:28px;width:100%;max-width:380px}
@@ -60,10 +66,13 @@ h1{font-size:22px;letter-spacing:-.02em}
   </header>
 
   <div class="escenario">
+    <div class="aviso" id="aviso"></div>
+
     <div class="barra">
       <span class="punto" id="punto"></span>
       <span class="estado" id="estado">sin conectar</span>
       <span class="conteo" id="conteo">0 conectados</span>
+      <span class="destino" id="destino"></span>
     </div>
 
     <div id="lienzo"></div>
@@ -111,13 +120,44 @@ h1{font-size:22px;letter-spacing:-.02em}
   </div>
 </div>
 
+<!-- Cualquier error de script se hace VISIBLE. El gate A4 se cayó porque un throw a
+     nivel de módulo impidió registrar los listeners y el botón murió en silencio. -->
+<script>
+  window.__aviso = function (html) {
+    var el = document.getElementById("aviso");
+    if (!el) return;
+    el.innerHTML = html;
+    el.classList.add("visible");
+  };
+  window.addEventListener("error", function (e) {
+    window.__aviso("Error de script: <code>" + (e.message || e) + "</code>");
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    window.__aviso("Promesa rechazada: <code>" + (e.reason && e.reason.message || e.reason) + "</code>");
+  });
+</script>
 <script src="/vendor/colyseus.js"></script>
 <script type="module">
 import { crearRenderCanvas2D } from "./render-canvas-2d.js";
 
 const $ = (id) => document.getElementById(id);
-const protocolo = location.protocol === "https:" ? "wss" : "ws";
-const cliente = new Colyseus.Client(`${protocolo}://${location.host}`);
+
+// Endpoint SIEMPRE same-origin: por túnel esto queda en wss://<host-de-ngrok>,
+// nunca en localhost. Se muestra en pantalla para poder confirmarlo de un vistazo.
+const PROTOCOLO = location.protocol === "https:" ? "wss" : "ws";
+const ENDPOINT = `${PROTOCOLO}://${location.host}`;
+$("destino").textContent = ENDPOINT;
+
+// Autochequeo: si el bundle de Colyseus no cargó bien, se dice en pantalla en vez
+// de dejar un botón muerto.
+if (typeof Colyseus === "undefined" || typeof Colyseus.Client !== "function") {
+  $("botonEntrar").disabled = true;
+  window.__aviso(
+    "El cliente de Colyseus no cargó bien: <code>Colyseus.Client</code> no es un constructor. " +
+    "Reconstruye el bundle con <code>npm run build:cliente</code>."
+  );
+  throw new Error("Colyseus.Client no disponible");
+}
 
 let sala = null;
 let render = null;
@@ -134,9 +174,11 @@ async function entrar() {
   fijarEstado("conectando…", false);
 
   try {
+    const cliente = new Colyseus.Client(ENDPOINT);
     sala = await cliente.joinOrCreate("plaza", { nombre, cargo });
   } catch (e) {
-    fijarEstado("no se pudo conectar: " + e.message, false);
+    fijarEstado("no se pudo conectar", false);
+    window.__aviso("No se pudo conectar a <code>" + ENDPOINT + "</code>: " + e.message);
     $("botonEntrar").disabled = false;
     return;
   }

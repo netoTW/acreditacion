@@ -6,6 +6,7 @@
 - [x] A1 Fijar estrategia de render: servidor agnóstico, decisión 2D/3D después del gate (ADR-004)
 - [x] A2 Servidor Colyseus mínimo: sala, esquema de estado en tiles, join/leave
 - [x] A3 Cliente sobre el canvas isométrico portado de la cáscara + autoridad de posición en servidor
+- [x] A3.1 Corregir el bundle del cliente: se servía el UMD de Node (Buffer is not defined) — ahora esbuild sobre la condición browser + verificador en prestart
 - [ ] A4 GATE DEL DIRECTOR: túnel ngrok + 2 dispositivos reales fuera de localhost
 - [x] A5 Chat sincronizado con rate limit y truncado + presencia real
 - [ ] A6 GATE DEL DIRECTOR: un cliente refresca y vuelve sin romper la sala

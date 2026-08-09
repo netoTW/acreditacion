@@ -5,8 +5,12 @@
   "description": "Spike de la Plaza Virtual — servidor de estado agnostico del render (ADR-004)",
   "main": "src/index.js",
   "scripts": {
+    "build:cliente": "esbuild colyseus.js --bundle --format=iife --global-name=Colyseus --platform=browser --target=es2019 --minify --outfile=cliente/vendor/colyseus.js",
+    "verifica:cliente": "node pruebas/verifica-cliente-navegador.js",
+    "prestart": "npm run build:cliente && npm run verifica:cliente",
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "npm run build:cliente && node --watch src/index.js",
+    "gates": "node pruebas/gates.js"
   },
   "dependencies": {
     "@colyseus/schema": "^2.0.0",
@@ -17,5 +21,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

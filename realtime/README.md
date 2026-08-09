@@ -11,14 +11,39 @@ npm install     # ya hecho
 npm start       # → http://localhost:2567
 ```
 
+> `npm start` reconstruye y verifica el bundle del cliente antes de levantar
+> (`prestart`). Si el bundle no es apto para navegador, **no arranca**.
+
+## Fallo conocido: por qué el gate A4 se cayó la primera vez
+
+El botón "Entrar" no hacía nada y la consola mostraba `Buffer is not defined` y
+`Colyseus.Client is not a constructor`.
+
+**Causa.** Se estaba sirviendo `node_modules/colyseus.js/dist/colyseus.js`. En la versión
+0.15.28 ese archivo dice ser UMD pero está compilado contra Node: hace
+`require('net')`, `require('tls')`, `require('buffer')` y trae el WebSocket de Node
+adentro. En el navegador reventaba **antes** de asignar `global.Colyseus`, así que
+`Colyseus.Client` quedaba `undefined`. Y como el `throw` ocurría a nivel de módulo, los
+listeners nunca se registraban: el botón quedaba muerto **en silencio**.
+
+**Arreglo.** El build correcto es la condición `browser` del paquete (`lib/index.js`), que
+se empaqueta con esbuild a `cliente/vendor/colyseus.js`: 75 kb en vez de 378, sin nada de
+Node. Además el cliente ahora hace autochequeo y muestra los errores en pantalla en vez de
+morirse callado.
+
+**Que no vuelva a pasar:** `npm run verifica:cliente` carga el bundle en un sandbox sin
+`Buffer`, sin `require` y sin `process` — lo más parecido a un navegador que se puede armar
+en Node — y falla si el bundle depende de algo de Node. Corre solo en cada `npm start`.
+
 ## Gates automatizables
 
 ```bash
+npm run verifica:cliente  # 11 checks del bundle de navegador
 npm start                 # en una terminal
-node pruebas/gates.js     # en otra
+npm run gates             # en otra — 10 checks de sincronización
 ```
 
-Cubre A2, A3 y A5. Estado actual: **10 de 10 en verde.**
+Cubre A2, A3 y A5. Estado actual: **21 de 21 en verde.**
 
 ```
 ok  A2 · dos clientes se ven

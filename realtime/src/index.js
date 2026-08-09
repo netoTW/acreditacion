@@ -7,14 +7,25 @@ const { SalaPlaza } = require("./SalaPlaza");
 
 const PUERTO = Number(process.env.PUERTO || process.env.PORT || 2567);
 
-const app = express();
-app.use(express.static(path.join(__dirname, "..", "cliente")));
+const fs = require("fs");
 
-// El cliente de Colyseus se sirve desde node_modules, no desde un CDN (S-26).
-app.use(
-  "/vendor",
-  express.static(path.join(__dirname, "..", "node_modules", "colyseus.js", "dist"))
-);
+const app = express();
+
+// El cliente de Colyseus se autohospeda (S-26) desde cliente/vendor/, que produce
+// `npm run build:cliente` con esbuild.
+//
+// OJO: NO servir node_modules/colyseus.js/dist/. En la version 0.15.28 ese archivo
+// es un UMD compilado contra Node (require de net/tls/buffer): en el navegador
+// revienta con "Buffer is not defined" antes de asignar el global, y Colyseus.Client
+// queda undefined. Eso tumbó el gate A4. El build correcto sale de la condicion
+// "browser" del package (lib/index.js), que es lo que empaqueta esbuild.
+const BUNDLE_CLIENTE = path.join(__dirname, "..", "cliente", "vendor", "colyseus.js");
+if (!fs.existsSync(BUNDLE_CLIENTE)) {
+  console.error("\n  Falta cliente/vendor/colyseus.js — corre: npm run build:cliente\n");
+  process.exit(1);
+}
+
+app.use(express.static(path.join(__dirname, "..", "cliente")));
 
 // Healthcheck: lo exige CLAUDE.md §11 para el compose.
 app.get("/salud", (_req, res) => res.json({ ok: true, servicio: "realtime" }));
