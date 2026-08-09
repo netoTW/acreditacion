@@ -1,0 +1,144 @@
+name: Integridad de completitud
+
+# El canario corre en CADA push y en cada PR. Si se pone rojo, el build se bloquea:
+# una medalla sin respaldo es evidencia falsa en un proceso de acreditación, no un
+# bug cosmético (CLAUDE.md §4 · ADR-005).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  canario:
+    name: Canario y regresión de integridad
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # PostgreSQL real, nunca SQLite: los CHECK y triggers no existen ahí y
+        # probar contra otro motor daría una garantía falsa.
+        image: postgres:16
+        env:
+          POSTGRES_USER: somoscalidad
+          POSTGRES_PASSWORD: somoscalidad
+          POSTGRES_DB: somoscalidad_test
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U somoscalidad"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://somoscalidad:somoscalidad@localhost:5433/somoscalidad_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: api/requirements.txt
+
+      - name: Instalar dependencias
+        working-directory: api
+        run: pip install -r requirements.txt
+
+      - name: EL CANARIO — un intento reprobado jamás produce medalla
+        working-directory: api
+        run: python -m pytest pruebas/test_canario.py -v
+
+      - name: Canario de esquema — la medalla falsa es imposible de insertar
+        working-directory: api
+        run: python -m pytest pruebas/test_canario_esquema.py -v
+
+      - name: Regresión de integridad
+        working-directory: api
+        run: python -m pytest pruebas/test_integridad.py -v
+
+  dientes:
+    name: Los candados están verificados (mutación)
+    runs-on: ubuntu-latest
+    needs: canario
+
+    # Rompe cada candado a propósito y exige que la suite se ponga roja. Un test
+    # que pasa igual con el candado saboteado no está probando nada.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: somoscalidad
+          POSTGRES_PASSWORD: somoscalidad
+          POSTGRES_DB: somoscalidad_test
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U somoscalidad"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://somoscalidad:somoscalidad@localhost:5433/somoscalidad_test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r api/requirements.txt
+
+      - name: Cada candado roto debe poner la suite en rojo
+        working-directory: api
+        run: |
+          set -uo pipefail
+          declare -a MUT=(
+            "DROP TRIGGER tg_insignia_respaldada ON insignia"
+            "ALTER TABLE insignia ALTER COLUMN intento_evaluacion_id DROP NOT NULL"
+            "DROP TRIGGER tg_intento_coherente ON intento_evaluacion"
+            "DROP TRIGGER tg_evento_append_only ON evento_gamificacion"
+            "ALTER TABLE evento_gamificacion DROP CONSTRAINT evento_gamificacion_check"
+          )
+          sobrevivientes=0
+          for sql in "${MUT[@]}"; do
+            if MUTACION="$sql" python -m pytest -q >/dev/null 2>&1; then
+              echo "SOBREVIVE sin ser detectado: $sql"
+              sobrevivientes=$((sobrevivientes+1))
+            else
+              echo "ok · detectado: $sql"
+            fi
+          done
+          if [ "$sobrevivientes" -gt 0 ]; then
+            echo "::error::$sobrevivientes candado(s) de integridad no están verificados por ningún test"
+            exit 1
+          fi
+
+  realtime:
+    name: Gates de la Plaza
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: realtime/package-lock.json
+
+      - run: npm ci
+        working-directory: realtime
+
+      - name: El bundle del cliente es apto para navegador
+        working-directory: realtime
+        run: npm run build:cliente && npm run verifica:cliente
+
+      - name: Sincronización, chat y reconexión
+        working-directory: realtime
+        run: |
+          node src/index.js &
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:2567/salud >/dev/null && break || sleep 1
+          done
+          node pruebas/gates.js
+          node pruebas/gate-a6-reconexion.js

@@ -35,7 +35,9 @@ async function main() {
   const clienteB = new Client(URL);
 
   // ---- A2: dos clientes en la misma sala se ven ----
-  const salaA = await clienteA.joinOrCreate("plaza", { nombre: "Ana", cargo: "Rector" });
+  // create() y no joinOrCreate(): la prueba corre en su PROPIA sala, para no heredar
+  // participantes de navegadores abiertos o de otra corrida.
+  const salaA = await clienteA.create("plaza", { nombre: "Ana", cargo: "Rector" });
   await esperar(300);
   const salaB = await clienteB.joinById(salaA.id, { nombre: "Beto", cargo: "Docente" });
   await esperar(600);

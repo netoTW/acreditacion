@@ -7,10 +7,10 @@
 - [x] A2 Servidor Colyseus mínimo: sala, esquema de estado en tiles, join/leave
 - [x] A3 Cliente sobre el canvas isométrico portado de la cáscara + autoridad de posición en servidor
 - [x] A3.1 Corregir el bundle del cliente: se servía el UMD de Node (Buffer is not defined) — ahora esbuild sobre la condición browser + verificador en prestart
-- [ ] A4 GATE DEL DIRECTOR: túnel ngrok + 2 dispositivos reales fuera de localhost
+- [x] A4 GATE DEL DIRECTOR: túnel ngrok + dispositivos reales fuera de localhost — APROBADO (Hito 1)
 - [x] A5 Chat sincronizado con rate limit y truncado + presencia real
-- [ ] A6 GATE DEL DIRECTOR: un cliente refresca y vuelve sin romper la sala
-- [ ] A7 GATE DEL DIRECTOR: los 3 dispositivos a la vez (punto 4 de LISTO)
+- [x] A6 Reconexión: cliente que se cae vuelve con su sessionId y posición — 11/11 en verde
+- [x] A7 GATE DEL DIRECTOR: 3 personas en redes distintas a la vez — APROBADO (Hito 1)
 - [ ] A8 Identidad por token firmado por la API (reemplaza el nombre por opciones)
 - [ ] A9 Persistencia del chat en mensaje_plaza (S-24)
 - [ ] A10 Actividad social: trivia grupal reusando el motor de la cáscara (S-42)
@@ -20,7 +20,7 @@
 - [x] B1 Tanda 1: ADR-001 stack · ADR-002 frontend · ADR-003 cargo×dimensión · ADR-004 realtime · ADR-005 integridad
 - [x] B1 Tanda 1: glosario, modelo de datos, design-system, JSON Schema de contenido, reglas del validador
 - [x] B1 Tanda 1: SUPUESTOS.md (S-01…S-42) y DECISIONES-AUTONOMAS.md
-- [ ] B2 Tanda 2 — Motor de integridad: eventos, XP dual, nivel derivado, medallas, invariantes espejo, canario
+- [x] B2 Tanda 2 — Motor de integridad: candados en el esquema, canario, canario de esquema, banco de mutación, CI
 - [ ] B3 Tanda 3 — Contenido y evaluación: contrato del generador, quiz vs evaluación, autosave, reintentos, casos borde
 - [ ] B4 Tanda 4 — Superficie: adapters (identidad, correo, Open Badges), permisos por comité, specs de las 16 pantallas
 - [ ] B5 Compuerta de Fase 0: reporte de consistencia (numeración, links, terminología, invariantes espejo)
@@ -28,7 +28,7 @@
 ## Track C — Cimientos supervisados (secuencial; el director verifica entre cada uno)
 - [ ] C1 Scaffold: docker compose autosuficiente (db, api, realtime, web) con /docs viva
 - [ ] C2 Modelo + migraciones + seed (5 dimensiones, 13 hitos, 6 cargos, matriz 30 filas, comités, 3 colaboradores)
-- [ ] C3 Motor de gamificación + Validador de Integridad + CANARIO EN CI (antes de la primera medalla)
+- [x] C3 Motor de gamificación + CANARIO EN CI (verde antes de que exista la primera medalla del sistema)
 - [ ] C4 Adapter de identidad + login dev "actuar como"
 - [ ] C5 Generador de contenido: 15 unidades (5 dimensiones × 3 niveles) validadas
 - [ ] C6 Integrador: contenido validado → rutas por cargo en base de datos

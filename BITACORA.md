@@ -54,6 +54,43 @@ caminando, con cero errores en consola.
 pasa por un verificador que la cargue en sandbox sin globals de Node. Un bundle equivocado
 no da error de compilación: da un botón muerto.
 
+### HITO 1: multijugador realtime validado sobre internet con 3 usuarios en redes distintas
+
+**Aprobado por el director.** Tres personas reales en ubicaciones distintas —el director,
+su pareja y su tío— entraron a la Plaza por túnel, eligieron cargo, se movieron y
+chatearon. Funcionó en los tres. Lag leve y usable para los remotos, esperable con el
+servidor en un Mac detrás de ngrok; en producción sobre Azure debería bajar.
+
+**Esto cierra los gates A4 y A7 de una vez** (dos dispositivos fuera de localhost, y los
+tres a la vez). Es el punto 4 de la definición de LISTO de CLAUDE.md §13.
+
+**Lo que significa para el proyecto:** la única incógnita real está despejada. Escalar de
+3 a 50 es configuración, no reconstrucción. Desde acá, los plazos se pueden comprometer.
+
+### Tanda 2 — motor de integridad: el canario está verde
+
+Construido y corriendo contra PostgreSQL 16 real. **28 pruebas en verde, 1 declarada
+pendiente** (aislamiento por cargo, que es de capa API y va en la Tanda 4).
+
+Los invariantes viven en el esquema, no en la capa de servicio (ADR-005). La cadena que
+habría que romper para falsificar una completitud es
+`insignia → intento_evaluacion → bloque_ruta → bloque_contenido`, y cada eslabón tiene su
+candado. Dos candados que agregué al construir y que no estaban en la spec:
+
+- El intento que respalda la medalla tiene que ser **del mismo colaborador**. Si no,
+  alguien reclama la medalla con el intento aprobado de otra persona.
+- Y del **mismo bloque de contenido**. Si no, se aprueba "VcM N1", que es el bloque más
+  liviano, y se reclama la medalla de "Docencia N3".
+
+Ambos están cerrados con trigger y con su prueba.
+
+**Banco de mutación.** Un test de integridad que pasa igual con el candado roto no prueba
+nada, así que rompo cada candado a propósito y exijo que la suite se ponga roja. Los cinco
+se detectan. Corre en CI como job propio.
+
+**CI** (`.github/workflows/integridad.yml`): el canario, el canario de esquema, la
+regresión, el banco de mutación y los gates de la Plaza, en cada push y cada PR.
+
 ### Pendiente inmediato — son del director, no míos
 - **A4** túnel + 2 dispositivos reales fuera de localhost. Hasta que pase, ningún plazo es firme.
 - **A6** reconexión por refresh · **A7** los 3 dispositivos a la vez.

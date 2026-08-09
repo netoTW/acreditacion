@@ -12,3 +12,6 @@ BITACORA.md.bak
 
 # build del cliente de la Plaza (lo regenera `npm run build:cliente`)
 realtime/cliente/vendor/
+
+# entorno de pruebas de la API
+api/.venv/
