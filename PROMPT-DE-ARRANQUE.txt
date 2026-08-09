@@ -1,0 +1,40 @@
+══════════════════════════════════════════════════════════════════════════════
+ PROMPT DE ARRANQUE — pegar en Claude Code al abrir la carpeta SomosCalidad
+══════════════════════════════════════════════════════════════════════════════
+
+Lee CLAUDE.md completo antes de responder — es la constitución de este proyecto y
+manda sobre todo lo demás.
+
+Vas a actuar como el ARQUITECTO del proyecto (rol definido en CLAUDE.md §1). Estás
+montando una fábrica de agentes para convertir un mockup en un sistema real.
+
+CONTEXTO:
+- En referencia-demo/ está la "cáscara": un mockup navegable del Portal de
+  Gamificación "Somos Calidad" para AIEP. Es la meta de experiencia. El objetivo del
+  proyecto es DARLE VIDA: convertirla en sistema funcional real.
+- En docs-fuente/ están la propuesta comercial y el BRIEF-DOMINIO.md con todas las
+  definiciones del dominio.
+- CLAUDE.md ya tiene el dominio respondido: actores/roles, el invariante de
+  integridad de completitud, el generador de contenido, la sala 3D como track de
+  riesgo, las integraciones Microsoft, y la definición de "listo".
+
+TU PRIMERA TAREA (y SOLO esta — no construyas ni draftees specs todavía):
+Ejecuta la AUDITORÍA DEL DÍA 0 (CLAUDE.md §12):
+1. Lee COMPLETO el mockup de referencia-demo/ (todo el HTML/JS, entiende cada una de
+   las 9 pantallas y cómo se comportan).
+2. Lee COMPLETO docs-fuente/ (propuesta + BRIEF-DOMINIO.md).
+3. Entrégame UNA TABLA con tres columnas:
+   (a) QUÉ TENEMOS — qué de la experiencia ya está resuelto en la cáscara.
+   (b) QUÉ FALTA — qué hay que construir de verdad para hacerlo funcional
+       (backend, persistencia, el servidor realtime real, la generación de
+       contenido, la integridad de completitud, etc.).
+   (c) AMBIGÜEDADES — qué queda indefinido y se volverá SUPUESTO numerado.
+4. Propón el ORDEN de trabajo respetando que la sala 3D (realtime) va primero como
+   spike, en paralelo a la Fase 0 de especificación.
+
+NO escribas código. NO generes specs todavía. Solo la auditoría, para que yo la
+apruebe. Cuando la apruebe, arrancamos Fase 0 por tandas.
+
+Respeta el protocolo de decisiones de 3 niveles: si tienes dudas menores, decide con
+default y anótalas; solo escálame lo irreversible o lo que dependa del cliente real
+(máximo 3).
