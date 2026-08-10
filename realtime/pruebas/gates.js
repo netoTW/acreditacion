@@ -53,16 +53,25 @@ async function main() {
   const yoEnB = participantesDe(salaB).find((p) => p.id === salaB.sessionId);
   const origen = { x: yoEnB.x, y: yoEnB.y };
 
-  salaB.send("mover", { x: 8, y: 8 });
-  await esperar(900);
+  // Se apunta a la esquina MÁS LEJANA desde donde apareció B, no a una fija: el
+  // punto de aparición es aleatorio y con un destino cercano el avatar alcanzaba
+  // a llegar dentro de la espera, haciendo fallar la prueba por azar.
+  const destino = { x: origen.x < 4.5 ? 9 : 0, y: origen.y < 4.5 ? 9 : 0 };
+  salaB.send("mover", { x: destino.x, y: destino.y });
 
-  const bVistoPorA = participantesDe(salaA).find((p) => p.id === salaB.sessionId);
-  const seMovio = Math.hypot(bVistoPorA.x - origen.x, bVistoPorA.y - origen.y) > 0.3;
-  verificar("A3 · A ve moverse a B", seMovio,
-    `de (${origen.x.toFixed(1)}, ${origen.y.toFixed(1)}) a (${bVistoPorA.x.toFixed(1)}, ${bVistoPorA.y.toFixed(1)})`);
+  // Se mira A MEDIA CAMINATA: a 2,4 tiles/s son ~0,5 tiles en 200 ms, y la esquina
+  // opuesta está siempre a más de 4. Tiene que haberse movido y NO haber llegado.
+  await esperar(220);
+  const enCamino = participantesDe(salaA).find((p) => p.id === salaB.sessionId);
+  const avance = Math.hypot(enCamino.x - origen.x, enCamino.y - origen.y);
+  const restante = Math.hypot(destino.x - enCamino.x, destino.y - enCamino.y);
 
-  const llegoDeInmediato = bVistoPorA.x === 8 && bVistoPorA.y === 8;
-  verificar("A3 · el servidor interpola, el cliente no teletransporta", !llegoDeInmediato);
+  verificar("A3 · A ve moverse a B", avance > 0.1,
+    `avanzó ${avance.toFixed(2)} tiles`);
+  verificar("A3 · el servidor interpola, el cliente no teletransporta", restante > 0.5,
+    `le faltan ${restante.toFixed(2)} tiles`);
+
+  await esperar(700);
 
   // El servidor es la autoridad: un destino fuera del mundo se acota.
   salaB.send("mover", { x: 999, y: -50 });
