@@ -25,3 +25,4 @@ contenido-generado.json
 
 # build del frontend
 web/dist/
+web/tsconfig.tsbuildinfo
