@@ -18,3 +18,6 @@ api/.venv/
 
 # variables locales (nunca al repo)
 .env
+
+# muestras de contenido exportadas (regenerables con api/exportar-contenido.py)
+contenido-muestra.json
