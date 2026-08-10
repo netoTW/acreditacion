@@ -176,3 +176,69 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .mapa { height: 620px; }
   .nodo { width: 118px; }
 }
+
+/* ------------------------------------------------------------- bloque (D1b) */
+.volver { font-size: 13px; color: var(--niebla); font-weight: 600; margin-bottom: 18px; padding: 6px 2px; }
+.volver:hover { color: var(--carmin); }
+.section-title { font-family: var(--disp); font-size: 15px; font-weight: 700; margin: 4px 0 14px; }
+
+.bloque-layout { display: grid; grid-template-columns: 1fr 320px; gap: 22px; align-items: start; }
+.mod-row { display: flex; align-items: center; gap: 16px; padding: 18px; border: 1px solid var(--linea); border-radius: 14px; margin-bottom: 12px; transition: 0.16s; background: #fff; }
+.mod-row:hover { box-shadow: var(--sombra); }
+.mod-ico { width: 46px; height: 46px; border-radius: 12px; flex: none; display: grid; place-items: center; }
+.mod-ico.completo { background: rgba(45, 212, 167, 0.15); color: var(--menta-deep); }
+.mod-ico.ahora { background: rgba(225, 29, 60, 0.12); color: var(--carmin); }
+.mod-ico.cerrado { background: var(--marfil); color: var(--niebla); }
+.mod-info { flex: 1; min-width: 0; }
+.mod-info .t { font-weight: 600; font-size: 15px; }
+.mod-info .d { font-size: 12.5px; color: var(--niebla); margin-top: 2px; }
+.mod-status { font-size: 12px; font-weight: 600; font-family: var(--mono); color: var(--niebla); }
+.btn-ghost { background: #fff; border: 1px solid var(--linea); color: var(--tinta); }
+.btn-ghost:hover { border-color: var(--tinta); background: var(--marfil); }
+.mod-row .btn { padding: 8px 16px; font-size: 13px; }
+
+.reward-card { padding: 24px; text-align: center; background: linear-gradient(160deg, #fff, #fff8ee); border-color: rgba(244, 183, 64, 0.4); }
+.big-badge { width: 112px; height: 126px; margin: 10px auto 14px; filter: drop-shadow(0 12px 24px rgba(244, 183, 64, 0.35)); }
+.big-badge svg { width: 100%; height: 100%; }
+.reward-nombre { font-family: var(--disp); font-weight: 700; font-size: 17px; line-height: 1.2; }
+.reward-sub { font-size: 13px; color: var(--niebla); margin: 8px 0 16px; }
+.side-stats { text-align: left; }
+.side-stat { display: flex; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--linea); font-size: 13.5px; }
+.side-stat:last-child { border-bottom: none; }
+.side-stat b { font-family: var(--mono); color: var(--carmin); }
+
+/* ------------------------------------------------- visor de módulo (D1b) */
+.lector { max-width: 760px; margin: 0 auto; }
+.lector-barra { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; font-size: 12px; color: var(--niebla); }
+.lector-track { flex: 1; height: 8px; background: var(--linea); border-radius: 20px; overflow: hidden; }
+.lector-fill { height: 100%; background: var(--menta); border-radius: 20px; transition: width 0.3s; }
+.lector-card { padding: 34px 38px 30px; }
+.lector-tags { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.lector-titulo { font-size: 30px; line-height: 1.12; margin-bottom: 20px; }
+.lector-pie { display: flex; justify-content: space-between; gap: 12px; margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--linea); flex-wrap: wrap; }
+.lector-nota { font-size: 12px; color: var(--niebla); margin-top: 12px; }
+.xp-ganado {
+  margin-top: 22px; padding: 12px 18px; border-radius: 12px; text-align: center;
+  background: rgba(45, 212, 167, 0.12); border: 1px solid rgba(45, 212, 167, 0.4);
+  color: var(--menta-deep); font-family: var(--mono); font-weight: 700; font-size: 14px;
+}
+
+.microlearning h2 { font-size: 22px; margin: 22px 0 10px; }
+.microlearning h3 { font-size: 17px; margin: 24px 0 8px; color: var(--tinta); }
+.microlearning p { font-size: 16px; line-height: 1.68; color: #4a2b3c; margin-bottom: 14px; max-width: 68ch; }
+.microlearning blockquote {
+  margin: 0 0 18px; padding: 12px 18px; border-left: 3px solid var(--oro);
+  background: rgba(244, 183, 64, 0.12); border-radius: 0 8px 8px 0;
+  font-size: 13.5px; color: #6b4a1f;
+}
+.microlearning ul { margin: 10px 0 14px; padding-left: 22px; }
+.microlearning li { font-size: 15px; line-height: 1.6; color: #4a2b3c; margin-bottom: 8px; }
+.microlearning strong { color: var(--tinta); font-weight: 650; }
+
+@media (max-width: 1080px) {
+  .bloque-layout { grid-template-columns: 1fr; }
+  .lector-card { padding: 24px 20px; }
+  .lector-titulo { font-size: 24px; }
+  .mod-row { flex-wrap: wrap; }
+  .mod-row .btn, .mod-status { margin-left: auto; }
+}

@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from identidad import SesionInvalida, proveedor_activo, verificar
 from motor.evaluacion import SinReintentos, abrir_intento, cerrar_intento, responder
 from motor.eventos import estado as leer_estado
+from motor.progreso import completar_modulo
 
 DSN = os.environ["DATABASE_URL"]
 pool = ConnectionPool(DSN, min_size=1, max_size=10, open=True)
@@ -362,24 +363,90 @@ def colaboradores(yo: UUID = Depends(con_permiso_institucional)):
 
 
 # =============================================================== contenido
+@app.get("/bloques-ruta/{bloque_ruta_id}", tags=["contenido"])
+def bloque(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
+    """
+    El bloque completo: cabecera, módulos con su estado, la evaluación y la medalla.
+
+    `evaluacion_disponible` es lo que ordena el recorrido: la evaluación se abre
+    cuando están vistos todos los módulos. No es un candado de integridad —esa la
+    impone la base—, es la secuencia formativa.
+    """
+    _bloque_propio(bloque_ruta_id, yo)
+
+    cabecera = filas(
+        """SELECT br.id AS bloque_ruta_id, br.orden, br.estado,
+                  d.codigo AS dimension, d.nombre_oficial AS dimension_nombre,
+                  bc.nivel_estandar, bc.titulo, bc.es_contenido_prueba,
+                  h.codigo AS hito, h.periodo_texto, h.titulo AS hito_titulo,
+                  dm.id AS medalla_id, dm.nombre AS medalla, dm.tipo AS medalla_tipo,
+                  dm.xp AS medalla_xp,
+                  ev.umbral_aprobacion, ev.n_items_por_intento, ev.max_reintentos,
+                  (SELECT count(*) FROM insignia i
+                    WHERE i.colaborador_id = %s AND i.definicion_medalla_id = dm.id) AS obtenida,
+                  (SELECT count(*) FROM intento_evaluacion ie
+                    WHERE ie.bloque_ruta_id = br.id) AS intentos_usados
+             FROM bloque_ruta br
+             JOIN bloque_contenido bc ON bc.id = br.bloque_contenido_id
+             JOIN dimension d ON d.id = bc.dimension_id
+             LEFT JOIN hito h ON h.id = br.hito_id
+             LEFT JOIN definicion_medalla dm ON dm.bloque_contenido_id = bc.id
+             LEFT JOIN evaluacion ev ON ev.bloque_contenido_id = bc.id
+            WHERE br.id = %s""",
+        (yo, bloque_ruta_id),
+    )[0]
+
+    modulos = _modulos_del_bloque(bloque_ruta_id, yo)
+    completos = sum(1 for m in modulos if m["completado"])
+
+    return {
+        **cabecera,
+        "modulos": modulos,
+        "modulos_completos": completos,
+        "evaluacion_disponible": completos == len(modulos) and len(modulos) > 0,
+    }
+
+
+def _modulos_del_bloque(bloque_ruta_id: UUID, yo: UUID) -> list[dict]:
+    return filas(
+        """SELECT m.id, m.orden, m.titulo, m.cuerpo, m.duracion_min, m.xp,
+                  m.nivel_estandar_origen, bc.es_contenido_prueba,
+                  (e.id IS NOT NULL) AS completado
+             FROM modulo m
+             JOIN bloque_contenido bc ON bc.id = m.bloque_contenido_id
+             JOIN bloque_ruta br ON br.bloque_contenido_id = bc.id
+             LEFT JOIN evento_gamificacion e
+                    ON e.origen_id = m.id AND e.origen_tipo = 'modulo' AND e.colaborador_id = %s
+            WHERE br.id = %s ORDER BY m.orden""",
+        (yo, bloque_ruta_id),
+    )
+
+
 @app.get("/bloques-ruta/{bloque_ruta_id}/modulos", tags=["contenido"])
 def modulos(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
     """
-    El microlearning del bloque, con su quiz formativo aparte.
+    El microlearning del bloque.
 
     `nivel_estandar_origen` muestra el anidamiento: en un bloque de nivel 3 conviven
     módulos de origen 1, 2 y 3, porque el estándar superior incluye a los anteriores.
     """
     _bloque_propio(bloque_ruta_id, yo)
-    return filas(
-        """SELECT m.id, m.orden, m.titulo, m.cuerpo, m.duracion_min, m.xp,
-                  m.nivel_estandar_origen, bc.es_contenido_prueba
-             FROM modulo m
-             JOIN bloque_contenido bc ON bc.id = m.bloque_contenido_id
-             JOIN bloque_ruta br ON br.bloque_contenido_id = bc.id
-            WHERE br.id = %s ORDER BY m.orden""",
-        (bloque_ruta_id,),
-    )
+    return _modulos_del_bloque(bloque_ruta_id, yo)
+
+
+@app.post("/modulos/{modulo_id}/completar", tags=["contenido"])
+def completar(modulo_id: UUID, yo: UUID = Depends(colaborador_actual)):
+    """
+    Marca el módulo como visto y suma su XP acreditable.
+
+    Idempotente: marcarlo dos veces no suma XP dos veces. **No otorga insignia** —
+    eso sigue siendo exclusivo de la evaluación aprobada, y lo impone la base.
+    """
+    with pool.connection() as conn:
+        try:
+            return completar_modulo(conn, colaborador_id=yo, modulo_id=modulo_id)
+        except LookupError as e:
+            raise HTTPException(404, str(e))
 
 
 # ============================================================== evaluación

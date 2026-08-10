@@ -35,7 +35,7 @@
 
 ## Track D — Modo fábrica (worktrees en paralelo, con cimientos verdes)
 - [x] D1a Pantalla de Ingreso ("actuar como") y Mi Ruta con mapa generado desde datos
-- [ ] D1b Pantalla de bloque y visor de módulo (no existe en la cáscara)
+- [x] D1b Pantalla de bloque + visor de módulo con el microlearning generado
 - [ ] D2 Quiz formativo y evaluación final con autosave e idempotencia
 - [ ] D3 Insignias y Open Badges + pantalla de medalla obtenida
 - [ ] D4 Ranking desde eventos con desempate S-15

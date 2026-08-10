@@ -79,6 +79,30 @@ export type BloqueDeRuta = {
   obtenida: number;
 };
 
+export type Modulo = {
+  id: string;
+  orden: number;
+  titulo: string;
+  cuerpo: string;
+  duracion_min: number;
+  xp: number;
+  nivel_estandar_origen: number;
+  es_contenido_prueba: boolean;
+  completado: boolean;
+};
+
+export type Bloque = BloqueDeRuta & {
+  medalla_id: string | null;
+  medalla_tipo: string | null;
+  umbral_aprobacion: string | number | null;
+  n_items_por_intento: number | null;
+  max_reintentos: number | null;
+  intentos_usados: number;
+  modulos: Modulo[];
+  modulos_completos: number;
+  evaluacion_disponible: boolean;
+};
+
 /* --------------------------------------------------------------- llamadas */
 export const api = {
   personasDisponibles: () => pedir<PersonaDisponible[]>("/auth/dev/colaboradores"),
@@ -110,4 +134,10 @@ export const api = {
   },
 
   miRuta: () => pedir<BloqueDeRuta[]>("/mi/ruta"),
+  bloque: (id: string) => pedir<Bloque>(`/bloques-ruta/${id}`),
+
+  completarModulo: (id: string) =>
+    pedir<{ ya_estaba: boolean; xp_otorgado: number }>(`/modulos/${id}/completar`, {
+      method: "POST",
+    }),
 };

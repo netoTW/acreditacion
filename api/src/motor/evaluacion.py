@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from .eventos import registrar_evento
+from .progreso import abrir_siguiente_bloque
 
 XP_POR_NIVEL_ESTANDAR = {1: 200, 2: 300, 3: 400}   # S-37
 
@@ -247,6 +248,7 @@ def cerrar_intento(conn, *, intento_id: UUID) -> ResultadoIntento:
             )
 
     conn.execute("UPDATE bloque_ruta SET estado = 'completo' WHERE id = %s", (bloque_ruta_id,))
+    abrir_siguiente_bloque(conn, bloque_ruta_id=bloque_ruta_id)
 
     return ResultadoIntento(
         intento_id=intento_id,

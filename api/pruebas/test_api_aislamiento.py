@@ -221,3 +221,70 @@ def test_se_acepta_la_red_local_para_probar_desde_el_telefono(cliente):
 def test_un_origen_externo_no_recibe_la_cabecera(cliente):
     r = cliente.get("/auth/dev/colaboradores", headers={"Origin": "https://sitio-ajeno.cl"})
     assert "access-control-allow-origin" not in r.headers
+
+
+# ------------------------------------------------- D1b · bloque y módulos
+def test_el_bloque_trae_modulos_evaluacion_y_medalla(cliente, docente):
+    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+    b = cliente.get(f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}", headers=_cab(docente)).json()
+
+    assert b["dimension"] == "DOCENCIA" and b["nivel_estandar"] == 3
+    assert len(b["modulos"]) == 4
+    assert {m["nivel_estandar_origen"] for m in b["modulos"]} == {1, 2, 3}
+    assert b["medalla_xp"] == 400 and float(b["umbral_aprobacion"]) == 0.8
+    assert b["modulos_completos"] == 0
+    assert b["evaluacion_disponible"] is False, "la evaluación no se abre sin ver los módulos"
+
+
+def test_completar_modulos_abre_la_evaluacion_y_suma_xp_una_vez(cliente, docente):
+    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+    bid = ruta[0]["bloque_ruta_id"]
+    b = cliente.get(f"/bloques-ruta/{bid}", headers=_cab(docente)).json()
+
+    antes = cliente.get("/mi/estado", headers=_cab(docente)).json()["xp_acreditable"]
+    for m in b["modulos"]:
+        r = cliente.post(f"/modulos/{m['id']}/completar", headers=_cab(docente)).json()
+        assert r["ya_estaba"] is False and r["xp_otorgado"] == 100
+
+    # marcar de nuevo no vuelve a pagar
+    repetido = cliente.post(f"/modulos/{b['modulos'][0]['id']}/completar", headers=_cab(docente)).json()
+    assert repetido["ya_estaba"] is True and repetido["xp_otorgado"] == 0
+
+    despues = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    assert despues["xp_acreditable"] == antes + 400
+    assert despues["insignias"] == 0, "ver módulos no otorga insignia"
+
+    b2 = cliente.get(f"/bloques-ruta/{bid}", headers=_cab(docente)).json()
+    assert b2["modulos_completos"] == 4 and b2["evaluacion_disponible"] is True
+
+
+def test_no_se_puede_completar_un_modulo_de_otro_cargo(cliente, docente, rector):
+    ruta_rector = cliente.get("/mi/ruta", headers=_cab(rector)).json()
+    ajeno = cliente.get(
+        f"/bloques-ruta/{ruta_rector[0]['bloque_ruta_id']}/modulos", headers=_cab(rector)
+    ).json()[0]
+    r = cliente.post(f"/modulos/{ajeno['id']}/completar", headers=_cab(docente))
+    assert r.status_code == 404
+
+
+def test_aprobar_un_bloque_abre_el_siguiente(cliente, rector):
+    """Sin esto la ruta queda con un solo bloque abierto para siempre."""
+    ruta = cliente.get("/mi/ruta", headers=_cab(rector)).json()
+    primero, segundo = ruta[0], ruta[1]
+    assert segundo["estado"] == "bloqueado"
+
+    clave = {c["item_id"]: c["indice_correcta"] for c in cliente.get(
+        f"/bloques-ruta/{primero['bloque_ruta_id']}/clave-de-respuestas", headers=_cab(rector)
+    ).json()}
+    intento = cliente.post(
+        f"/bloques-ruta/{primero['bloque_ruta_id']}/intentos", headers=_cab(rector)
+    ).json()
+    for item in intento["items_servidos"]:
+        cliente.post(f"/intentos/{intento['intento_id']}/respuestas", headers=_cab(rector),
+                     json={"item_id": item, "indice_elegido": clave[item]})
+    assert cliente.post(f"/intentos/{intento['intento_id']}/cerrar",
+                        headers=_cab(rector)).json()["aprobado"] is True
+
+    ruta2 = cliente.get("/mi/ruta", headers=_cab(rector)).json()
+    assert ruta2[0]["estado"] == "completo"
+    assert ruta2[1]["estado"] == "disponible", "el bloque siguiente debe abrirse"

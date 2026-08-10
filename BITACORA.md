@@ -215,6 +215,37 @@ caída y vuelve sola al Ingreso, y toda pantalla de error tiene botón de vuelta
 **Lección, la misma que con el bundle de Colyseus:** lo que corre en el navegador se
 verifica en el navegador. `curl` no hace preflight, no aplica CORS y no ejecuta el bundle.
 
+### D1b — pantalla de bloque y visor de módulo
+
+La pieza que la cáscara prometía y no tenía: el microlearning ahora se lee de verdad.
+
+**Backend.** `GET /bloques-ruta/{id}` devuelve el bloque completo —módulos con su estado,
+evaluación, medalla— y `POST /modulos/{id}/completar` marca el módulo como visto. Suma XP
+**acreditable** (S-04: el recorrido formativo lo es), es idempotente por clave de evento, y
+**no otorga insignia**: eso sigue siendo exclusivo de la evaluación aprobada.
+
+`evaluacion_disponible` se abre cuando están vistos todos los módulos. No es un candado de
+integridad —esa la impone la base— sino la secuencia formativa.
+
+También se agregó `abrir_siguiente_bloque`: al aprobar un bloque se habilita el siguiente.
+Sin eso la ruta quedaba con un solo bloque abierto para siempre y el mapa no avanzaba nunca.
+
+**Frontend.** Se extrajo `Marco` —sidebar, barra superior y marca de contenido de prueba—
+para que ninguna pantalla repita el armazón ni pueda olvidarse la marca. El microlearning se
+renderiza con un componente propio: el generador produce un subconjunto acotado de Markdown,
+así que se convierte a mano y **sin HTML crudo**, todo pasa por el árbol de React.
+
+Navegación con un estado de tres vistas, sin router: con estas pantallas una dependencia de
+enrutado agrega más de lo que resuelve. Se reevalúa cuando entren ranking, insignias y Plaza.
+
+**Bug encontrado en el navegador.** `App` cargaba identidad y ruta con `Promise.all`, así que
+**el error que ganaba la carrera decidía el mensaje**: con un token viejo, si `/mi/ruta`
+respondía primero, la app mostraba "todavía no tienes ruta generada" en vez de detectar la
+sesión caída y volver al ingreso. Ahora es secuencial: primero identidad, después datos.
+
+Verificado en Chrome de punta a punta: ruta → bloque → módulo → completar. El XP pasó de 0 a
+100, la barra del sidebar se movió y avanzó al módulo 2 de 4. Suite: **82 en verde**.
+
 ### Pendiente inmediato — son del director, no míos
 - **A4** túnel + 2 dispositivos reales fuera de localhost. Hasta que pase, ningún plazo es firme.
 - **A6** reconexión por refresh · **A7** los 3 dispositivos a la vez.
