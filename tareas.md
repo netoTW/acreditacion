@@ -41,7 +41,11 @@
 - [ ] D3 Insignias y Open Badges + pantalla de medalla obtenida
 - [ ] D4 Ranking desde eventos con desempate S-15
 - [ ] D5 Dashboard desde eventos + rezagados agregados + registro de acceso (E-03)
-- [ ] D6 Juegos recableados al banco real, con tope de XP lúdico
+- [x] D6.0 Fase 0 de los juegos: plan de diseño de la capa de gamificación (docs/DISENO-GAMIFICACION.md)
+- [ ] D6.1 Prerrequisito: persistir `dificultad` del ítem (migración + integrador)
+- [ ] D6.2 M1 Calibre — juego de módulo, apuesta de confianza, sin reloj
+- [ ] D6.3 M2 Ascenso — integrador de bloque, press-your-luck por tramos de dificultad
+- [ ] D6.4 M3 Comité relámpago — social en la Plaza, reusa el motor de M1
 - [x] D7a Navegación móvil (S-28) verificada a 900px: botón de menú y sidebar deslizante
 - [ ] D7b Accesibilidad completa en todas las pantallas
 - [ ] D8 Eliminar /clave-de-respuestas y MODO_DEV antes de producción
