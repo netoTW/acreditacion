@@ -23,3 +23,6 @@
 - **El seed es parte del arranque, no un script aparte** · si el seed se rompe, el sistema no levanta, y eso es lo correcto · se saca del entrypoint.
 - **Punto de quiebre responsive en 1080 px** · el que ya usa la cáscara · variable CSS.
 - **Se descarta portar el polyfill roto de `roundRect` y la comparación por `textContent` de la trivia** · ambos son defectos de la cáscara, no comportamiento a preservar · —.
+- **Endpoint `clave-de-respuestas`** · doble candado `MODO_DEV=true` + `es_contenido_prueba` · el director necesita cerrar el ciclo de evaluación desde /docs y sin frontend no hay otra forma; sobre contenido real responde 403 · se elimina en D8.
+- **Healthchecks con `127.0.0.1` y no `localhost`** · en Alpine `localhost` resuelve primero a ::1 y el servidor escucha en IPv4, así que el healthcheck daba "connection refused" con el servicio sano · —.
+- **Migraciones en SQL plano con corredor propio, no Alembic todavía** · el esquema es el que impone los invariantes y conviene leerlo tal cual; Alembic lo adopta como revisión inicial cuando haga falta migrar en caliente · —.

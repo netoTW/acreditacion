@@ -91,6 +91,36 @@ se detectan. Corre en CI como job propio.
 **CI** (`.github/workflows/integridad.yml`): el canario, el canario de esquema, la
 regresión, el banco de mutación y los gates de la Plaza, en cada push y cada PR.
 
+### HITO 2: motor de integridad blindado en esquema + canario + banco de mutación verificado — falsificar una completitud es imposible por construcción
+
+**Aprobado por el director**, verificado en su máquina: `correr-pruebas.sh` → 28 passed,
+1 skipped (I-10 declarada para la Tanda 4). `prueba-mutacion.sh` → los 5 candados rotos se
+detectan y la suite se pone roja donde debe. El canario está verde **antes de que exista la
+primera medalla del sistema**. A6 (reconexión) también en verde.
+
+### C1 + C2 — el sistema levanta con un comando y tiene datos de verdad
+
+`docker compose up` y listo: espera la base, migra, siembra y sirve. Tres servicios en
+**healthy**. Guía de verificación en [VERIFICAR.md](VERIFICAR.md).
+
+Seed exacto: **5 dimensiones · 13 hitos · 6 cargos · 30 filas de matriz · 15 unidades de
+contenido · 3 colaboradores**, todo derivado de la ruta oficial de AIEP.
+
+**La tesis de ADR-003 quedó verificada con datos:** las 15 unidades de contenido sirven los
+30 pares cargo×dimensión. La suma de `cargos_que_la_usan` da exactamente 30. Y las rutas se
+ven distintas: el Rector no tiene ningún nivel 1; el Docente tiene un solo nivel 3.
+
+El ciclo completo corre por la API: el canario canta dentro del sistema desplegado
+(reprobar → sin medalla, sin XP, sin cambio de escalón), el camino legítimo otorga con su
+respaldo auditable, y el doble envío no duplica nada.
+
+**Dos cosas que aparecieron al levantar:**
+
+- Los puertos 5432 y 8000 estaban tomados por `portal-inclusion`. Los defaults pasaron a
+  **8010 / 5442 / 2567** para que los dos proyectos convivan sin apagar nada (S-44).
+- El healthcheck del realtime daba "connection refused" con el servicio sano: en Alpine
+  `localhost` resuelve primero a `::1` y el servidor escucha en IPv4. Corregido a `127.0.0.1`.
+
 ### Pendiente inmediato — son del director, no míos
 - **A4** túnel + 2 dispositivos reales fuera de localhost. Hasta que pase, ningún plazo es firme.
 - **A6** reconexión por refresh · **A7** los 3 dispositivos a la vez.

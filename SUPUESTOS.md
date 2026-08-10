@@ -1,7 +1,7 @@
 # SUPUESTOS
 
-> Todo lo inferido va acá, numerado. Origen: auditoría del Día 0 (S-01…S-30) y Tanda 1 de
-> Fase 0 (S-31…S-40).
+> Todo lo inferido va acá, numerado. Origen: auditoría del Día 0 (S-01…S-30), Tanda 1 de
+> Fase 0 (S-31…S-42) y los cimientos C1+C2 (S-43…S-44).
 >
 > **Estados:** `RATIFICADO` = nivel 2 aprobado en lote por el director · `VIGENTE` = nivel 1,
 > decidido por el arquitecto · `SUPERADO` = reemplazado, se conserva para trazabilidad.
@@ -17,6 +17,8 @@
 | S-30 | Los cargos del slice usan la taxonomía estándar de IES chilena; el organigrama oficial de AIEP se cablea después. | RATIFICADO |
 | S-31 | **La matriz Cargo × Dimensión** de [ADR-003](docs/decisiones/ADR-003-cargo-por-dimension.md): cada cargo toca las 5 dimensiones con nivel ≥ 1 y se diferencia por dónde se le exige profundidad. Vive en datos (30 filas de seed), no en código. | VIGENTE |
 | S-34 | La ruta del slice son **5 bloques —uno por dimensión— más el nodo de graduación**. Reemplaza a S-09 y resuelve la inconsistencia de la cáscara, que dibujaba 7 nodos y decía 8 bloques. | VIGENTE |
+| S-43 | **Anclaje de posiciones a hitos:** las 5 posiciones de toda ruta se anclan a H01, H04, H05, H07 y H08 — inicio, comités de sedes y escuelas, talleres con informantes, comité por dimensión y comité central. La ruta se ordena por exigencia descendente: primero la dimensión donde al cargo se le pide más. | VIGENTE |
+| S-44 | Puertos por defecto **8010 / 5442 / 2567**, para convivir con `portal-inclusion` (que ocupa 8000 y 5432) y con el Postgres de pruebas (5433). | VIGENTE |
 | S-38 | Cada bloque de ruta se **ancla a un hito** de la ruta oficial 2026–2027, para que el colaborador vea *por qué ahora* le toca esa dimensión y el dashboard compare avance contra calendario CNA. | VIGENTE |
 | S-40 | Los 3 colaboradores del slice ocupan cargos con matrices bien distintas, para que la personalización se vea de inmediato: **Rector** (amplitud, sin ningún nivel 1), **Docente** (un solo nivel 3, el resto en 1) y **Coordinador de Calidad** (perfil de aseguramiento). | VIGENTE |
 

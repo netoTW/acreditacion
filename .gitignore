@@ -15,3 +15,6 @@ realtime/cliente/vendor/
 
 # entorno de pruebas de la API
 api/.venv/
+
+# variables locales (nunca al repo)
+.env

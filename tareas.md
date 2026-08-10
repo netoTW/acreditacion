@@ -26,8 +26,8 @@
 - [ ] B5 Compuerta de Fase 0: reporte de consistencia (numeración, links, terminología, invariantes espejo)
 
 ## Track C — Cimientos supervisados (secuencial; el director verifica entre cada uno)
-- [ ] C1 Scaffold: docker compose autosuficiente (db, api, realtime, web) con /docs viva
-- [ ] C2 Modelo + migraciones + seed (5 dimensiones, 13 hitos, 6 cargos, matriz 30 filas, comités, 3 colaboradores)
+- [x] C1 Scaffold: docker compose autosuficiente (db, api, realtime) con /docs viva y 3 servicios healthy
+- [x] C2 Modelo + migraciones + seed (5 dimensiones, 13 hitos, 6 cargos, matriz 30 filas, comités, 3 colaboradores)
 - [x] C3 Motor de gamificación + CANARIO EN CI (verde antes de que exista la primera medalla del sistema)
 - [ ] C4 Adapter de identidad + login dev "actuar como"
 - [ ] C5 Generador de contenido: 15 unidades (5 dimensiones × 3 niveles) validadas
@@ -41,6 +41,8 @@
 - [ ] D5 Dashboard desde eventos + rezagados agregados + registro de acceso (E-03)
 - [ ] D6 Juegos recableados al banco real, con tope de XP lúdico
 - [ ] D7 Navegación móvil (S-28) y accesibilidad en todas las pantallas
+- [ ] D8 Eliminar /clave-de-respuestas y MODO_DEV antes de producción
+- [ ] D9 Servicio web en el compose cuando exista el frontend
 
 ## Gate final
 - [ ] Los 5 puntos de CLAUDE.md §13 verdes de punta a punta

@@ -23,7 +23,7 @@ sys.path.insert(0, str(RAIZ / "src"))
 DSN = os.environ.get(
     "DATABASE_URL", "postgresql://somoscalidad:somoscalidad@localhost:5433/somoscalidad_test"
 )
-DDL = RAIZ / "migraciones" / "001_integridad.sql"
+MIGRACIONES = sorted((RAIZ / "migraciones").glob("*.sql"))
 
 
 @pytest.fixture(scope="session")
@@ -31,7 +31,8 @@ def conexion():
     with psycopg.connect(DSN, autocommit=True) as conn:
         conn.execute("DROP SCHEMA IF EXISTS public CASCADE")
         conn.execute("CREATE SCHEMA public")
-        conn.execute(DDL.read_text(encoding="utf-8"))
+        for archivo in MIGRACIONES:
+            conn.execute(archivo.read_text(encoding="utf-8"))
 
         # Banco de mutación: sabotea un candado a propósito para comprobar que la
         # suite lo delata. Un test de integridad que pasa igual con el candado roto
@@ -64,8 +65,9 @@ def db(conexion):
     conexion.execute(
         """
         TRUNCATE insignia, evento_gamificacion, respuesta_intento, intento_evaluacion,
-                 bloque_ruta, ruta, colaborador, definicion_medalla, item_evaluacion,
-                 evaluacion, bloque_contenido, dimension, cargo
+                 bloque_ruta, ruta, membresia_comite, colaborador, comite, unidad,
+                 exigencia_cargo_dimension, hito, definicion_medalla, modulo,
+                 item_evaluacion, evaluacion, bloque_contenido, dimension, cargo
         RESTART IDENTITY CASCADE
         """
     )
