@@ -7,6 +7,7 @@ escalón, ranking ni completitud se guarda a mano: todo se deriva de acá
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
@@ -14,9 +15,15 @@ from uuid import UUID
 ClaseXP = Literal["acreditable", "ludico"]
 OrigenTipo = Literal["modulo", "evaluacion", "medalla", "juego"]
 
-# Tope diario de XP lúdico por colaborador (S-05). Sin esto, "jugar de nuevo"
-# es infinito y el ranking pierde sentido.
-TOPE_DIARIO_XP_LUDICO = 200
+# Tope diario de XP lúdico **por juego** (S-05), no global: cada quiz o partida
+# tiene el suyo. Se aplica por `origen_id`.
+#
+# 400 y no 200: una partida perfecta del quiz más largo vale 330 XP con la fórmula
+# de racha de la cáscara, y truncarla castigaría justo a quien lo hace bien. El
+# freno al farmeo no viene de este número, viene de dos cosas más fuertes: cada
+# quiz paga una vez al día, y el XP lúdico NUNCA mueve el escalón ni la
+# completitud (S-04), que es lo único que protege la acreditación.
+TOPE_DIARIO_XP_LUDICO = int(os.environ.get("TOPE_DIARIO_XP_LUDICO", "400"))
 
 
 @dataclass(frozen=True)
@@ -55,7 +62,7 @@ def registrar_evento(
         )
 
     if clase_xp == "ludico" and xp > 0:
-        xp = min(xp, _xp_ludico_disponible_hoy(conn, colaborador_id))
+        xp = min(xp, _xp_ludico_disponible_hoy(conn, colaborador_id, origen_id))
         if xp == 0:
             return None
 
@@ -73,16 +80,23 @@ def registrar_evento(
     return fila[0] if fila else None
 
 
-def _xp_ludico_disponible_hoy(conn, colaborador_id: UUID) -> int:
+def _xp_ludico_disponible_hoy(conn, colaborador_id: UUID, origen_id: UUID) -> int:
+    """
+    Lo que queda hoy para ESE juego. El tope es por juego, no global (S-05).
+
+    Global castigaba al que avanza: jugar el quiz de dos módulos el mismo día
+    agotaba el presupuesto y el tercero quedaba en cero sin explicación.
+    """
     gastado = conn.execute(
         """
         SELECT COALESCE(SUM(xp), 0)
           FROM evento_gamificacion
          WHERE colaborador_id = %s
+           AND origen_id = %s
            AND clase_xp = 'ludico'
            AND ocurrido_en >= date_trunc('day', now())
         """,
-        (colaborador_id,),
+        (colaborador_id, origen_id),
     ).fetchone()[0]
     return max(0, TOPE_DIARIO_XP_LUDICO - int(gastado))
 

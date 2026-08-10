@@ -37,7 +37,7 @@
 | # | Supuesto | Estado |
 |---|---|---|
 | S-04 | **XP dual:** `acreditable` (módulos y evaluaciones aprobadas) y `ludico` (juegos). Nivel y completitud derivan solo del acreditable; el ranking usa el total. | RATIFICADO |
-| S-05 | El XP lúdico tiene tope diario por juego, default 200 XP/día, y se registra como evento igual que el resto. | VIGENTE |
+| S-05 | El XP lúdico tiene tope diario **por juego** (por `origen_id`), default **400 XP/día**, y se registra como evento igual que el resto. Se subió de 200 porque una partida perfecta del quiz más largo vale 330 y truncarla castiga a quien lo hace bien; el freno al farmeo no es este número sino que cada quiz paga una vez al día y que el XP lúdico nunca mueve el escalón. | VIGENTE |
 | S-10 | Se conservan los umbrales de la cáscara: 0 / 1.000 / 2.500 / 4.500 / 7.000 / 10.000 XP. | VIGENTE |
 | S-11 | Agotar los 3 reintentos deja el bloque en `requiere_acompanamiento`. **Nunca otorga la medalla.** | RATIFICADO |
 | S-22 | Open Badges v2.0 con URL de verificación pública. En el slice, adapter local con el contrato del real. | VIGENTE |
@@ -49,6 +49,8 @@
 | # | Supuesto | Estado |
 |---|---|---|
 | S-07 | La pantalla de quiz se parte en dos: **quiz formativo** (feedback inmediato, no otorga nada) y **evaluación final** (resultado al final, gate 80%). | RATIFICADO |
+| S-46 | Los ítems del quiz formativo viven en **tabla propia**, no en `item_evaluacion`: el quiz entrega la respuesta correcta al cliente y el banco de la evaluación no lo hace jamás. Separarlos vuelve imposible filtrar el banco por descuido. | VIGENTE |
+| S-47 | El quiz formativo **paga una vez al día por módulo** y su puntaje lo **recalcula el servidor** desde las respuestas. Si el cliente propusiera su XP, el tope y la racha serían decorativos. | VIGENTE |
 | S-08 | La actividad colaborativa del bloque es **opcional**: da XP lúdico y no bloquea completitud ni medalla. | RATIFICADO |
 | S-12 | El intento abierto expira a las 24 h: se cierra como no aprobado, consume reintento y no otorga nada. | VIGENTE |
 | S-13 | Envío **idempotente por `intento_id`**: el segundo envío devuelve el resultado del primero y nunca crea un segundo evento de XP. | VIGENTE |

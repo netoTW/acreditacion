@@ -84,16 +84,34 @@ def _reemplazar_contenido(conn, bc_id, bloque: dict) -> tuple[int, int]:
             WHERE evaluacion_id IN (SELECT id FROM evaluacion WHERE bloque_contenido_id = %s)""",
         (bc_id,),
     )
+    # Los ítems de quiz caen con su módulo por ON DELETE CASCADE.
     conn.execute("DELETE FROM modulo WHERE bloque_contenido_id = %s", (bc_id,))
 
     for m in bloque["modulos"]:
-        conn.execute(
+        modulo_id = conn.execute(
             """INSERT INTO modulo (bloque_contenido_id, orden, titulo, cuerpo,
                                    duracion_min, xp, nivel_estandar_origen)
-               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+               VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
             (bc_id, m["orden"], m["titulo"], m["cuerpo"], m["duracion_min"],
              m["xp"], m["nivel_estandar_origen"]),
-        )
+        ).fetchone()[0]
+
+        # El quiz formativo va en su propia tabla: entrega la respuesta correcta
+        # al cliente para el feedback inmediato, y el banco de la evaluación no
+        # la entrega nunca.
+        for orden, item in enumerate(m["quiz_formativo"], start=1):
+            conn.execute(
+                """INSERT INTO item_quiz_formativo
+                       (modulo_id, orden, enunciado, alternativas, indice_correcta,
+                        explicaciones, hash_enunciado)
+                   VALUES (%s,%s,%s,%s::jsonb,%s,%s::jsonb,%s)
+                   ON CONFLICT (modulo_id, hash_enunciado) DO NOTHING""",
+                (modulo_id, orden, item["enunciado"],
+                 json.dumps(item["alternativas"], ensure_ascii=False),
+                 item["indice_correcta"],
+                 json.dumps(item["explicaciones"], ensure_ascii=False),
+                 _hash(item["enunciado"])),
+            )
 
     ev = bloque["evaluacion"]
     ev_id = conn.execute(

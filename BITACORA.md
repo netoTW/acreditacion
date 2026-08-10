@@ -246,6 +246,31 @@ sesión caída y volver al ingreso. Ahora es secuencial: primero identidad, desp
 Verificado en Chrome de punta a punta: ruta → bloque → módulo → completar. El XP pasó de 0 a
 100, la barra del sidebar se movió y avanzó al módulo 2 de 4. Suite: **82 en verde**.
 
+### D2a — quiz formativo: la mecánica de juego
+
+Feedback inmediato verde y rojo con la correcta a la vista, racha, multiplicador y combo
+pop. Portado de la sala de juegos de la cáscara.
+
+**Hallazgo al empezar:** el Generador producía los ítems del quiz desde el principio, pero
+**no existía dónde guardarlos** y el Integrador los descartaba en silencio. Migración 003 con
+tabla propia — y propia a propósito: el quiz entrega la respuesta correcta al cliente para
+dar feedback, y el banco de la evaluación no lo hace jamás. Si vivieran juntos, una consulta
+distraída filtraría el banco.
+
+**El puntaje lo calcula el servidor** desde las respuestas y su orden. El cliente solo manda
+qué eligió. Si propusiera su propio XP, el tope y la racha serían decorativos.
+
+**El XP del quiz es lúdico**, y se ve en pantalla: tras jugar, el sidebar sigue marcando
+0 XP acreditable y escalón Explorador, mientras el ranking sí registra los 30 XP. Jugar no
+acerca a nadie a una medalla.
+
+**Corrección de S-05.** El tope de XP lúdico estaba implementado **global** y la spec decía
+**por juego**. Global castigaba al que avanza: jugar el quiz de dos módulos el mismo día
+agotaba el presupuesto y el tercero quedaba en cero sin explicación. Ahora es por `origen_id`
+y el default subió de 200 a 400, porque una partida perfecta del quiz más largo vale 330.
+
+Suite: **88 en verde**.
+
 ### Pendiente inmediato — son del director, no míos
 - **A4** túnel + 2 dispositivos reales fuera de localhost. Hasta que pase, ningún plazo es firme.
 - **A6** reconexión por refresh · **A7** los 3 dispositivos a la vez.

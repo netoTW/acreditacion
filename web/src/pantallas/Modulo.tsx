@@ -11,6 +11,7 @@ type Props = {
   bloquesCompletos: number;
   onVolver: () => void;
   onIrAModulo: (moduloId: string) => void;
+  onPracticar: () => void;
   onXpGanado: () => void;
   onSalir: () => void;
 };
@@ -112,6 +113,7 @@ export function Modulo(p: Props) {
 
             <div className="lector-pie">
               <button className="btn btn-ghost" onClick={p.onVolver}>Volver al bloque</button>
+              <button className="btn btn-oro" onClick={p.onPracticar}>⚡ Practicar</button>
               <button className="btn btn-primary" onClick={terminar} disabled={guardando}>
                 {guardando
                   ? "guardando…"

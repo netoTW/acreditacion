@@ -103,6 +103,23 @@ export type Bloque = BloqueDeRuta & {
   evaluacion_disponible: boolean;
 };
 
+export type ItemQuiz = {
+  id: string;
+  orden: number;
+  enunciado: string;
+  alternativas: string[];
+  indice_correcta: number;
+  explicaciones: string[];
+};
+
+export type ResultadoQuiz = {
+  total: number;
+  aciertos: number;
+  mejor_racha: number;
+  xp_otorgado: number;
+  ya_jugado_hoy: boolean;
+};
+
 /* --------------------------------------------------------------- llamadas */
 export const api = {
   personasDisponibles: () => pedir<PersonaDisponible[]>("/auth/dev/colaboradores"),
@@ -135,6 +152,15 @@ export const api = {
 
   miRuta: () => pedir<BloqueDeRuta[]>("/mi/ruta"),
   bloque: (id: string) => pedir<Bloque>(`/bloques-ruta/${id}`),
+
+  quiz: (moduloId: string) => pedir<ItemQuiz[]>(`/modulos/${moduloId}/quiz`),
+
+  /** Se mandan las respuestas EN ORDEN: la racha depende de él, y la calcula el servidor. */
+  resultadoQuiz: (moduloId: string, respuestas: { item_id: string; indice_elegido: number }[]) =>
+    pedir<ResultadoQuiz>(`/modulos/${moduloId}/quiz/resultado`, {
+      method: "POST",
+      body: JSON.stringify({ respuestas }),
+    }),
 
   completarModulo: (id: string) =>
     pedir<{ ya_estaba: boolean; xp_otorgado: number }>(`/modulos/${id}/completar`, {

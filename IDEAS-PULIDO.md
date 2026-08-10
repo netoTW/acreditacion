@@ -15,6 +15,14 @@
   frecuente, comparación entre conceptos), y subir el umbral de similitud a medida que el
   banco crezca.
 
+## Quiz y evaluación
+
+- **Los ítems del quiz formativo y los del banco de la evaluación salen de los mismos
+  conceptos**, así que comparten enunciados. No compromete el invariante —la medalla sigue
+  exigiendo aprobar la evaluación— pero hace que la evaluación se parezca demasiado a la
+  práctica. En producción conviene que el generador produzca ángulos distintos para cada
+  uno: la práctica con casos, la evaluación con aplicación.
+
 ## Realtime
 
 - Interpolación en el cliente para suavizar el movimiento con latencia alta. El director

@@ -288,3 +288,102 @@ def test_aprobar_un_bloque_abre_el_siguiente(cliente, rector):
     ruta2 = cliente.get("/mi/ruta", headers=_cab(rector)).json()
     assert ruta2[0]["estado"] == "completo"
     assert ruta2[1]["estado"] == "disponible", "el bloque siguiente debe abrirse"
+
+
+# ------------------------------------------------ D2 · quiz formativo
+def test_el_quiz_entrega_la_respuesta_para_dar_feedback(cliente, docente):
+    """A diferencia del banco de la evaluación, acá la correcta SÍ viaja: es formativo."""
+    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+    mod = cliente.get(
+        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(docente)
+    ).json()[0]
+
+    items = cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(docente)).json()
+    assert len(items) >= 3
+    for i in items:
+        assert 0 <= i["indice_correcta"] <= 3
+        assert len(i["alternativas"]) == 4 and len(i["explicaciones"]) == 4
+
+
+def test_el_quiz_de_otro_cargo_no_se_sirve(cliente, docente, rector):
+    ruta_rector = cliente.get("/mi/ruta", headers=_cab(rector)).json()
+    ajeno = cliente.get(
+        f"/bloques-ruta/{ruta_rector[0]['bloque_ruta_id']}/modulos", headers=_cab(rector)
+    ).json()[0]
+    assert cliente.get(f"/modulos/{ajeno['id']}/quiz", headers=_cab(docente)).status_code == 404
+
+
+def test_el_servidor_recalcula_racha_y_xp(cliente, docente):
+    """El cliente manda qué eligió; los aciertos, la racha y el XP los pone el servidor."""
+    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+    mod = cliente.get(
+        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(docente)
+    ).json()[0]
+    items = cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(docente)).json()
+
+    # Todo correcto: la racha crece y el XP es 30 + 40 + 50 + …
+    respuestas = [{"item_id": i["id"], "indice_elegido": i["indice_correcta"]} for i in items]
+    r = cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(docente),
+                     json={"respuestas": respuestas}).json()
+
+    esperado = sum(20 + (n + 1) * 10 for n in range(len(items)))
+    assert r["aciertos"] == len(items)
+    assert r["mejor_racha"] == len(items)
+    assert r["xp_otorgado"] == esperado
+
+
+def test_el_xp_del_quiz_es_ludico_y_no_mueve_el_escalon(cliente, docente):
+    """Jugar no puede acercar a nadie a una medalla ni subirlo de escalón (S-04)."""
+    antes = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+    mod = cliente.get(
+        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(docente)
+    ).json()[1]
+    items = cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(docente)).json()
+
+    cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(docente),
+                 json={"respuestas": [{"item_id": i["id"], "indice_elegido": i["indice_correcta"]}
+                                      for i in items]})
+
+    despues = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    assert despues["xp_acreditable"] == antes["xp_acreditable"], "el quiz no da XP acreditable"
+    assert despues["xp_total"] > antes["xp_total"], "sí suma al total, que es lo que ve el ranking"
+    assert despues["insignias"] == antes["insignias"]
+
+
+def test_repetir_el_quiz_el_mismo_dia_no_vuelve_a_pagar(cliente, docente):
+    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+    mod = cliente.get(
+        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(docente)
+    ).json()[2]
+    items = cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(docente)).json()
+    cuerpo = {"respuestas": [{"item_id": i["id"], "indice_elegido": i["indice_correcta"]}
+                            for i in items]}
+
+    primero = cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(docente),
+                           json=cuerpo).json()
+    segundo = cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(docente),
+                           json=cuerpo).json()
+
+    assert primero["xp_otorgado"] > 0
+    assert segundo["xp_otorgado"] == 0 and segundo["ya_jugado_hoy"] is True
+    assert segundo["aciertos"] == primero["aciertos"], "el resultado igual se informa"
+
+
+def test_una_racha_rota_reduce_el_xp(cliente, docente):
+    """Fallar en medio corta el multiplicador: es la mecánica de la cáscara."""
+    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+    mod = cliente.get(
+        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(docente)
+    ).json()[3]
+    items = cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(docente)).json()
+
+    respuestas = []
+    for n, i in enumerate(items):
+        elegido = i["indice_correcta"] if n != 1 else (i["indice_correcta"] + 1) % 4
+        respuestas.append({"item_id": i["id"], "indice_elegido": elegido})
+
+    r = cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(docente),
+                     json={"respuestas": respuestas}).json()
+    assert r["aciertos"] == len(items) - 1
+    assert r["mejor_racha"] < len(items), "la racha se cortó en el fallo"

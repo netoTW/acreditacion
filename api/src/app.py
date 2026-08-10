@@ -24,6 +24,7 @@ from identidad import SesionInvalida, proveedor_activo, verificar
 from motor.evaluacion import SinReintentos, abrir_intento, cerrar_intento, responder
 from motor.eventos import estado as leer_estado
 from motor.progreso import completar_modulo
+from motor.quiz import puntuar_quiz
 
 DSN = os.environ["DATABASE_URL"]
 pool = ConnectionPool(DSN, min_size=1, max_size=10, open=True)
@@ -432,6 +433,73 @@ def modulos(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
     """
     _bloque_propio(bloque_ruta_id, yo)
     return _modulos_del_bloque(bloque_ruta_id, yo)
+
+
+def _modulo_propio(modulo_id: UUID, yo: UUID) -> None:
+    mio = filas(
+        """SELECT 1 FROM modulo m
+             JOIN bloque_ruta br ON br.bloque_contenido_id = m.bloque_contenido_id
+             JOIN ruta r ON r.id = br.ruta_id
+            WHERE m.id = %s AND r.colaborador_id = %s""",
+        (modulo_id, yo),
+    )
+    if not mio:
+        raise HTTPException(404, "ese módulo no está en tu ruta")
+
+
+@app.get("/modulos/{modulo_id}/quiz", tags=["quiz formativo"])
+def quiz(modulo_id: UUID, yo: UUID = Depends(colaborador_actual)):
+    """
+    Los ítems del quiz formativo, **con la respuesta correcta y las explicaciones**.
+
+    Acá sí viajan al cliente, y es deliberado: el quiz da feedback inmediato y no
+    otorga completitud (S-07). El banco de la evaluación final es otra tabla y no
+    entrega la respuesta jamás.
+    """
+    _modulo_propio(modulo_id, yo)
+    return filas(
+        """SELECT id, orden, enunciado, alternativas, indice_correcta, explicaciones
+             FROM item_quiz_formativo WHERE modulo_id = %s ORDER BY orden""",
+        (modulo_id,),
+    )
+
+
+class RespuestaQuiz(BaseModel):
+    item_id: UUID
+    indice_elegido: int = Field(ge=0, le=3)
+
+
+class ResultadoQuizEnviado(BaseModel):
+    respuestas: list[RespuestaQuiz]
+
+
+@app.post("/modulos/{modulo_id}/quiz/resultado", tags=["quiz formativo"])
+def cerrar_quiz(modulo_id: UUID, cuerpo: ResultadoQuizEnviado,
+                yo: UUID = Depends(colaborador_actual)):
+    """
+    Puntúa la partida. **El servidor recalcula todo**: aciertos, racha y XP.
+
+    El cliente manda solo qué eligió y en qué orden. Si propusiera su propio XP,
+    el tope diario y la racha serían decorativos. El XP es lúdico: no mueve el
+    escalón ni acerca a una medalla (S-04).
+    """
+    _modulo_propio(modulo_id, yo)
+    with pool.connection() as conn:
+        try:
+            r = puntuar_quiz(
+                conn, colaborador_id=yo, modulo_id=modulo_id,
+                respuestas=[{"item_id": x.item_id, "indice_elegido": x.indice_elegido}
+                            for x in cuerpo.respuestas],
+            )
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+    return {
+        "total": r.total,
+        "aciertos": r.aciertos,
+        "mejor_racha": r.mejor_racha,
+        "xp_otorgado": r.xp_otorgado,
+        "ya_jugado_hoy": r.ya_jugado_hoy,
+    }
 
 
 @app.post("/modulos/{modulo_id}/completar", tags=["contenido"])

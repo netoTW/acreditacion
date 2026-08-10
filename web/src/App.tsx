@@ -4,6 +4,7 @@ import { Bloque } from "./pantallas/Bloque";
 import { Ingreso } from "./pantallas/Ingreso";
 import { MiRuta } from "./pantallas/MiRuta";
 import { Modulo } from "./pantallas/Modulo";
+import { Quiz } from "./pantallas/Quiz";
 
 /**
  * Navegación.
@@ -15,7 +16,8 @@ import { Modulo } from "./pantallas/Modulo";
 type Vista =
   | { t: "ruta" }
   | { t: "bloque"; bloqueRutaId: string }
-  | { t: "modulo"; bloqueRutaId: string; moduloId: string };
+  | { t: "modulo"; bloqueRutaId: string; moduloId: string }
+  | { t: "quiz"; bloqueRutaId: string; moduloId: string; tituloModulo: string };
 
 export function App() {
   const [conSesion, setConSesion] = useState(() => Boolean(token.leer()));
@@ -89,6 +91,19 @@ export function App() {
       />
     );
 
+  if (vista.t === "quiz")
+    return (
+      <Quiz
+        {...comun}
+        bloqueRutaId={vista.bloqueRutaId}
+        moduloId={vista.moduloId}
+        tituloModulo={vista.tituloModulo}
+        onVolver={() => setVista({ t: "modulo", bloqueRutaId: vista.bloqueRutaId, moduloId: vista.moduloId })}
+        onXpGanado={cargar}
+        onSalir={salir}
+      />
+    );
+
   if (vista.t === "modulo")
     return (
       <Modulo
@@ -98,6 +113,9 @@ export function App() {
         onVolver={() => setVista({ t: "bloque", bloqueRutaId: vista.bloqueRutaId })}
         onIrAModulo={(moduloId) =>
           setVista({ t: "modulo", bloqueRutaId: vista.bloqueRutaId, moduloId })}
+        onPracticar={() =>
+          setVista({ t: "quiz", bloqueRutaId: vista.bloqueRutaId, moduloId: vista.moduloId,
+                     tituloModulo: "Módulo" })}
         onXpGanado={cargar}
         onSalir={salir}
       />
