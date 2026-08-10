@@ -45,8 +45,12 @@
 - [x] D6.1 Prerrequisito: dificultad persistida (migración 004) — 360/360 ítems con sus tres tramos
 - [x] D6.1b Tope de ranking: el XP lúdico cuenta hasta el acreditable (migración 005)
 - [x] D6.2 M1 Calibre — juego de módulo, apuesta de confianza, sin reloj
-- [ ] D6.3 M2 Ascenso — integrador de bloque, ~2 min, 3 tramos × 3 preguntas, 2 vidas
-- [ ] D6.4 M3 Comité relámpago — social en la Plaza, reusa el motor de M1
+- [~] D6.3 M2 Ascenso — EN PAUSA por cambio de dirección (Camino B)
+- [~] D6.4 M3 Comité relámpago — EN PAUSA por cambio de dirección (Camino B)
+- [x] D6.5 Camino B: diseño de 4 mecánicas que no son elegir alternativa (docs/DISENO-GAMIFICACION-B.md)
+- [x] D6.6 B2 Mesa de comité — clasificar afirmaciones por dimensión, tablero manipulable
+- [ ] D6.7 B1 Línea de tiempo — ordenar los 13 hitos (barata, rejugabilidad baja)
+- [ ] D6.8 B4 Un día en la institución — simulación con consecuencias (CARA: contenido nuevo)
 - [x] D7a Navegación móvil (S-28) verificada a 900px: botón de menú y sidebar deslizante
 - [ ] D7b Accesibilidad completa en todas las pantallas
 - [ ] D8 Eliminar /clave-de-respuestas y MODO_DEV antes de producción

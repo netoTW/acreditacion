@@ -28,10 +28,12 @@ type Props = {
   bloques: number;
   completos: number;
   onCerrar: () => void;
+  seccion?: "ruta" | "mesa";
+  onIrA?: (s: "ruta" | "mesa") => void;
   onSalir: () => void;
 };
 
-export function Sidebar({ yo, abierto, bloques, completos, onCerrar, onSalir }: Props) {
+export function Sidebar({ yo, abierto, bloques, completos, seccion = "ruta", onIrA, onCerrar, onSalir }: Props) {
   const { actual, siguiente, pct } = progresoDeEscalon(yo.xp_acreditable);
 
   return (
@@ -50,12 +52,21 @@ export function Sidebar({ yo, abierto, bloques, completos, onCerrar, onSalir }: 
         </div>
 
         <nav>
-          <button className="nav-item activo">
+          <button
+            className={`nav-item ${seccion === "ruta" ? "activo" : ""}`}
+            onClick={() => onIrA?.("ruta")}
+          >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h4l3 8 4-16 3 8h4" /></svg>
             Mi Ruta <span className="nav-badge">{completos}/{bloques}</span>
           </button>
-          {/* Las demás pantallas llegan en D2–D7; no se muestran como si funcionaran. */}
-          <div className="nav-proximo">Bloque, evaluación, insignias, ranking y Plaza: en construcción</div>
+          <button
+            className={`nav-item ${seccion === "mesa" ? "activo" : ""}`}
+            onClick={() => onIrA?.("mesa")}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="9" rx="1"/></svg>
+            Mesa de comité
+          </button>
+          <div className="nav-proximo">Insignias, ranking y Plaza: en construcción</div>
         </nav>
 
         <div className="persona-card">

@@ -334,6 +334,39 @@ Tres decisiones de implementación que sostienen el diseño:
 
 Suite: **100 en verde.**
 
+### Camino B — la gamificación deja de ser cuestionarios
+
+**Cambio de dirección del director**, y tiene razón: Calibre, Ascenso y Comité comparten el
+mismo verbo —responder una pregunta con una capa de decisión encima— y por debajo se sienten
+a cuestionario. El peso se mueve a mecánicas donde el contenido **se manipula**. Calibre se
+queda como práctica rápida; **M2 y M3 quedan en pausa**.
+
+**Lo primero fue mirar qué material existe de verdad**, porque eso decide qué es barato:
+
+- **Ordenar** tiene **una sola fuente auténtica**: los 13 hitos. Todo lo demás («las fases de
+  la autoevaluación», «el ciclo de mejora continua») está en prosa dentro del microlearning,
+  no estructurado. Hacerlo jugable exige generarlo.
+- **Clasificar por fortaleza/debilidad/oportunidad —el ejemplo del director— hoy es
+  imposible**: no hay una sola afirmación etiquetada así. En cambio **clasificar por
+  dimensión** sale gratis: 120 afirmaciones verdaderas ya etiquetadas.
+- **Simular** no tiene absolutamente nada: ni casos encadenados, ni modelo de indicadores, ni
+  consecuencias. Y su versión barata no sirve — encadenar escenarios sueltos daría
+  consecuencias genéricas y se notaría.
+
+Diseño de las cuatro en `docs/DISENO-GAMIFICACION-B.md`, con costo honesto por mecánica.
+
+**Construida: B2 «Mesa de comité».** Cinco bandejas, seis afirmaciones, se mueven libremente
+entre bandejas y solo se corrige al cerrar. Se juega comparando unas con otras. Dos formas de
+mover —arrastrar y tocar-carta/tocar-bandeja— porque un juego de arrastre que solo funciona
+con ratón deja fuera justo a quien lo usará en el teléfono.
+
+El reveal es lo que la hace enseñar: la carta mal ubicada se pinta y dice **dónde iba y de qué
+concepto se trataba**. Jugada real: 5 de 6, con el acompañamiento estudiantil puesto en
+Aseguramiento cuando era Docencia — un error legítimo, del tipo que discute un comité.
+
+Verificado: la Mesa no mueve XP acreditable, ni escalón, ni insignias, y respeta el tope de
+ranking. Suite: **106 en verde**.
+
 ### Pendiente inmediato — son del director, no míos
 - **A4** túnel + 2 dispositivos reales fuera de localhost. Hasta que pase, ningún plazo es firme.
 - **A6** reconexión por refresh · **A7** los 3 dispositivos a la vez.

@@ -470,3 +470,73 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .apuesta-btn.creo:hover { background: rgba(255, 255, 255, 0.13); }
 
 @media (max-width: 1080px) { .apuesta-botones { grid-template-columns: 1fr; } }
+
+/* ------------------------------------------ B2 Mesa de comité (Camino B) */
+/* No es un cuestionario: es un tablero. Fondo claro y tarjetas físicas, porque
+   lo que se manipula son objetos, no respuestas. */
+.mano {
+  background: var(--marfil); border: 1.5px dashed var(--linea);
+  border-radius: 16px; padding: 16px 18px; margin-bottom: 18px; transition: 0.15s;
+}
+.mano.encima { border-color: var(--carmin); background: rgba(225, 29, 60, 0.04); }
+.mano-rotulo { font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--niebla); margin-bottom: 12px; }
+.mano-cartas { display: flex; gap: 10px; flex-wrap: wrap; }
+.mano-vacia { font-size: 13.5px; color: var(--niebla); font-style: italic; }
+
+.carta {
+  text-align: left; background: #fff; border: 1.5px solid var(--linea);
+  border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.45;
+  color: var(--tinta); box-shadow: var(--sombra); transition: 0.14s; cursor: grab;
+  display: flex; flex-direction: column; gap: 7px; max-width: 340px;
+}
+.mano .carta { flex: 1 1 260px; }
+.carta:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--tinta); }
+.carta.tomada { border-color: var(--carmin); box-shadow: 0 10px 26px rgba(225, 29, 60, 0.25);
+  transform: translateY(-3px) rotate(-1deg); cursor: grabbing; }
+.carta:disabled { cursor: default; }
+.carta.bien { border-color: var(--menta); background: rgba(45, 212, 167, 0.07); }
+.carta.mal { border-color: var(--carmin); background: rgba(225, 29, 60, 0.05); }
+.carta-texto { display: block; }
+.carta-verdad { display: block; font-size: 11.5px; color: var(--carmin); line-height: 1.4;
+  border-top: 1px solid var(--linea); padding-top: 7px; }
+.carta-verdad b { color: var(--carmin); }
+
+.bandejas { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.bandeja {
+  background: #fff; border: 1.5px solid var(--linea); border-radius: 16px;
+  padding: 14px 12px; min-height: 190px; transition: 0.15s;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.bandeja.recibiendo { border-style: dashed; border-color: var(--niebla); }
+.bandeja.encima { border-color: var(--carmin); background: rgba(225, 29, 60, 0.04);
+  box-shadow: 0 10px 26px rgba(225, 29, 60, 0.14); }
+.bandeja-rotulo { display: flex; align-items: baseline; gap: 8px; }
+.bandeja-rotulo b { font-family: var(--disp); font-size: 13px; font-weight: 700; line-height: 1.2; flex: 1; }
+.bandeja-rotulo span { font-family: var(--mono); font-size: 11px; color: var(--niebla); }
+.bandeja-cartas { display: flex; flex-direction: column; gap: 8px; }
+.bandeja .carta { max-width: none; font-size: 12.5px; padding: 10px 12px; }
+
+.mesa-pie { display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-top: 20px; flex-wrap: wrap; }
+.mesa-pista { font-size: 13.5px; color: var(--niebla); }
+
+.mesa-resultado { background: #fff; border: 1px solid var(--linea); border-radius: var(--r-lg);
+  padding: 26px 28px; margin-bottom: 20px; box-shadow: var(--sombra); text-align: center; }
+.mesa-resultado.perfecta { border-color: rgba(45, 212, 167, 0.55);
+  background: linear-gradient(170deg, #fff, #f4fffb); }
+.mr-marca { font-family: var(--disp); font-size: 22px; font-weight: 800; }
+.mesa-resultado.perfecta .mr-marca { color: var(--menta-deep); }
+.mr-puntaje { font-family: var(--mono); font-size: 42px; font-weight: 700; margin: 6px 0 2px; }
+.mesa-resultado.perfecta .mr-puntaje { color: var(--menta-deep); }
+.mr-xp { font-family: var(--mono); font-size: 15px; color: #a9750d; font-weight: 700; }
+.mr-bono { display: inline-block; margin-left: 8px; font-size: 11px; background: rgba(244,183,64,.18);
+  padding: 2px 9px; border-radius: 20px; }
+.mr-nota { font-size: 14px; color: var(--niebla); max-width: 56ch; margin: 12px auto 0; line-height: 1.55; }
+.mr-acciones { display: flex; gap: 10px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+
+@media (max-width: 1080px) {
+  .bandejas { grid-template-columns: 1fr 1fr; }
+  .bandeja { min-height: 120px; }
+  .mesa-pie .btn { width: 100%; }
+}

@@ -15,11 +15,13 @@ type Props = {
   bloques: number;
   completos: number;
   marcaPrueba?: boolean;
+  seccion?: "ruta" | "mesa";
+  onIrA?: (s: "ruta" | "mesa") => void;
   onSalir: () => void;
   children: ReactNode;
 };
 
-export function Marco({ yo, crumb, bloques, completos, marcaPrueba, onSalir, children }: Props) {
+export function Marco({ yo, crumb, bloques, completos, marcaPrueba, seccion = "ruta", onIrA, onSalir, children }: Props) {
   const [menu, setMenu] = useState(false);
 
   return (
@@ -30,6 +32,8 @@ export function Marco({ yo, crumb, bloques, completos, marcaPrueba, onSalir, chi
         bloques={bloques}
         completos={completos}
         onCerrar={() => setMenu(false)}
+        seccion={seccion}
+        onIrA={onIrA}
         onSalir={onSalir}
       />
       <div className="main">

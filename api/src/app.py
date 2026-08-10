@@ -27,6 +27,7 @@ from motor.evaluacion import (
 from motor.eventos import estado as leer_estado
 from motor.progreso import completar_modulo
 from motor.calibre import puntuar_calibre
+from motor.mesa import cerrar_mesa, repartir
 from motor.quiz import puntuar_quiz
 
 DSN = os.environ["DATABASE_URL"]
@@ -545,6 +546,57 @@ def cerrar_calibre(modulo_id: UUID, cuerpo: PartidaCalibre,
         "seguros": r.seguros, "seguros_acertados": r.seguros_acertados,
         "puntos": r.puntos, "bono_calibrado": r.bono_calibrado,
         "xp_otorgado": r.xp_otorgado, "ya_jugado_hoy": r.ya_jugado_hoy,
+    }
+
+
+# ======================================================= B2 · Mesa de comité
+class Colocacion(BaseModel):
+    item_id: UUID
+    dimension: str
+
+
+class MesaCerrada(BaseModel):
+    colocaciones: list[Colocacion]
+
+
+@app.get("/juegos/mesa", tags=["juegos"])
+def mesa(yo: UUID = Depends(colaborador_actual)):
+    """
+    Reparte una **Mesa de comité**: cinco bandejas y seis afirmaciones sueltas.
+
+    Las cartas vienen **sin decir a qué bandeja van** — eso lo sabe solo el servidor
+    hasta que se cierra la mesa. Salen de los bloques de tu propia ruta (I-10) y solo
+    del quiz formativo, nunca del banco de la evaluación.
+    """
+    with pool.connection() as conn:
+        try:
+            return repartir(conn, colaborador_id=yo)
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+
+
+@app.post("/juegos/mesa/resultado", tags=["juegos"])
+def resultado_mesa(cuerpo: MesaCerrada, yo: UUID = Depends(colaborador_actual)):
+    """
+    Cierra la mesa y la corrige.
+
+    El cliente manda **dónde puso cada carta**; los aciertos, los puntos y el bono de
+    mesa perfecta los calcula el servidor. XP lúdico: no mueve el escalón ni acerca a
+    una medalla.
+    """
+    with pool.connection() as conn:
+        try:
+            r = cerrar_mesa(
+                conn, colaborador_id=yo,
+                colocaciones=[{"item_id": c.item_id, "dimension": c.dimension}
+                              for c in cuerpo.colocaciones],
+            )
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+    return {
+        "total": r.total, "aciertos": r.aciertos, "puntos": r.puntos,
+        "mesa_perfecta": r.mesa_perfecta, "xp_otorgado": r.xp_otorgado,
+        "ya_jugado_hoy": r.ya_jugado_hoy, "revelacion": r.revelacion,
     }
 
 

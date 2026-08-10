@@ -570,3 +570,75 @@ def test_quien_no_avanza_no_escala_jugando(cliente, rector):
             if f["xp_acreditable"] == 0]
     for f in fila:
         assert f["xp_ranking"] == 0, "sin recorrido, jugar no da posición"
+
+
+# ------------------------------------------- B2 · Mesa de comité (Camino B)
+def test_la_mesa_reparte_cartas_sin_revelar_la_bandeja(cliente, docente):
+    m = cliente.get("/juegos/mesa", headers=_cab(docente)).json()
+    assert len(m["bandejas"]) == 5
+    assert len(m["cartas"]) == 6
+    for c in m["cartas"]:
+        assert set(c) == {"item_id", "texto"}, "la carta no puede traer su dimensión"
+        assert len(c["texto"]) > 20, "la afirmación tiene que entenderse sola"
+
+
+def test_la_mesa_busca_variedad_de_dimensiones(cliente, docente):
+    """Una mesa casi monodimensional se resuelve por descarte y deja de ser interesante."""
+    m = cliente.get("/juegos/mesa", headers=_cab(docente)).json()
+    r = cliente.post("/juegos/mesa/resultado", headers=_cab(docente),
+                     json={"colocaciones": [{"item_id": c["item_id"], "dimension": "GESTION"}
+                                            for c in m["cartas"]]}).json()
+    dims = {x["dimension_correcta"] for x in r["revelacion"]}
+    assert len(dims) >= 4, f"solo {len(dims)} dimensiones en la mesa"
+
+
+def test_cerrar_la_mesa_perfecta_da_el_bono(cliente, docente):
+    m = cliente.get("/juegos/mesa", headers=_cab(docente)).json()
+    # Se cierra mal a propósito para conocer la verdad, y se vuelve a armar bien.
+    espia = cliente.post("/juegos/mesa/resultado", headers=_cab(docente),
+                         json={"colocaciones": [{"item_id": c["item_id"], "dimension": "ICI"}
+                                                for c in m["cartas"]]}).json()
+    correcto = {x["item_id"]: x["dimension_correcta"] for x in espia["revelacion"]}
+
+    r = cliente.post("/juegos/mesa/resultado", headers=_cab(docente),
+                     json={"colocaciones": [{"item_id": k, "dimension": v}
+                                            for k, v in correcto.items()]}).json()
+    assert r["aciertos"] == r["total"]
+    assert r["mesa_perfecta"] is True
+    assert r["puntos"] == r["total"] * 40 + 80
+
+
+def test_la_revelacion_dice_donde_iba_cada_carta(cliente, docente):
+    m = cliente.get("/juegos/mesa", headers=_cab(docente)).json()
+    r = cliente.post("/juegos/mesa/resultado", headers=_cab(docente),
+                     json={"colocaciones": [{"item_id": c["item_id"], "dimension": "VCM"}
+                                            for c in m["cartas"]]}).json()
+    for x in r["revelacion"]:
+        assert x["puesta_en"] == "VCM"
+        assert x["dimension_correcta"] and x["dimension_nombre"]
+        assert x["enunciado"], "el reveal muestra de qué concepto se trataba"
+        assert x["acerto"] == (x["dimension_correcta"] == "VCM")
+
+
+def test_la_mesa_solo_usa_contenido_de_la_propia_ruta(cliente, docente, rector):
+    """I-10 también rige para los juegos."""
+    mia = cliente.get("/juegos/mesa", headers=_cab(docente)).json()
+    ajena = cliente.get("/juegos/mesa", headers=_cab(rector)).json()
+    r = cliente.post("/juegos/mesa/resultado", headers=_cab(docente),
+                     json={"colocaciones": [{"item_id": c["item_id"], "dimension": "GESTION"}
+                                            for c in ajena["cartas"]]}).json()
+    # Ninguna carta del Rector es válida en la mesa del Docente salvo que compartan bloque.
+    assert r["total"] <= len(ajena["cartas"])
+    assert {c["item_id"] for c in mia["cartas"]} != {c["item_id"] for c in ajena["cartas"]}
+
+
+def test_la_mesa_es_ludica_y_no_toca_el_acreditable(cliente, docente):
+    antes = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    m = cliente.get("/juegos/mesa", headers=_cab(docente)).json()
+    cliente.post("/juegos/mesa/resultado", headers=_cab(docente),
+                 json={"colocaciones": [{"item_id": c["item_id"], "dimension": "CALIDAD"}
+                                        for c in m["cartas"]]})
+    despues = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    assert despues["xp_acreditable"] == antes["xp_acreditable"]
+    assert despues["escalon"] == antes["escalon"]
+    assert despues["insignias"] == antes["insignias"]

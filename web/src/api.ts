@@ -158,6 +158,24 @@ export type ResultadoEvaluacion = {
   reintentos_restantes: number;
 };
 
+export type MesaRepartida = {
+  bandejas: { codigo: string; nombre: string }[];
+  cartas: { item_id: string; texto: string }[];
+};
+
+export type ResultadoMesa = {
+  total: number;
+  aciertos: number;
+  puntos: number;
+  mesa_perfecta: boolean;
+  xp_otorgado: number;
+  ya_jugado_hoy: boolean;
+  revelacion: {
+    item_id: string; acerto: boolean; puesta_en: string;
+    dimension_correcta: string; dimension_nombre: string; enunciado: string;
+  }[];
+};
+
 /* --------------------------------------------------------------- llamadas */
 export const api = {
   personasDisponibles: () => pedir<PersonaDisponible[]>("/auth/dev/colaboradores"),
@@ -223,6 +241,15 @@ export const api = {
     pedir<ResultadoCalibre>(`/modulos/${moduloId}/calibre/resultado`, {
       method: "POST",
       body: JSON.stringify({ respuestas }),
+    }),
+
+  mesa: () => pedir<MesaRepartida>("/juegos/mesa"),
+
+  /** El cliente manda dónde puso cada carta; el puntaje lo pone el servidor. */
+  cerrarMesa: (colocaciones: { item_id: string; dimension: string }[]) =>
+    pedir<ResultadoMesa>("/juegos/mesa/resultado", {
+      method: "POST",
+      body: JSON.stringify({ colocaciones }),
     }),
 
   completarModulo: (id: string) =>

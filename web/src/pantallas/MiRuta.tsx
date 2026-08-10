@@ -7,10 +7,11 @@ type Props = {
   yo: Yo;
   bloques: BloqueDeRuta[];
   onAbrirBloque: (bloqueRutaId: string) => void;
+  onIrA: (s: "ruta" | "mesa") => void;
   onSalir: () => void;
 };
 
-export function MiRuta({ yo, bloques, onAbrirBloque, onSalir }: Props) {
+export function MiRuta({ yo, bloques, onAbrirBloque, onIrA, onSalir }: Props) {
   const completos = bloques.filter((b) => b.estado === "completo").length;
   const enCurso = bloques.find((b) => b.estado === "disponible" || b.estado === "en_curso");
   const { actual } = progresoDeEscalon(yo.xp_acreditable);
@@ -22,6 +23,8 @@ export function MiRuta({ yo, bloques, onAbrirBloque, onSalir }: Props) {
       bloques={bloques.length}
       completos={completos}
       marcaPrueba={hayPrueba}
+      seccion="ruta"
+      onIrA={onIrA}
       crumb={<><b>Vista colaborador</b> · Mi Ruta</>}
       onSalir={onSalir}
     >

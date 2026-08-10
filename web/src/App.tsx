@@ -4,6 +4,7 @@ import { Bloque } from "./pantallas/Bloque";
 import { Calibre } from "./pantallas/Calibre";
 import { Evaluacion } from "./pantallas/Evaluacion";
 import { Ingreso } from "./pantallas/Ingreso";
+import { Mesa } from "./pantallas/Mesa";
 import { MiRuta } from "./pantallas/MiRuta";
 import { Modulo } from "./pantallas/Modulo";
 import { Quiz } from "./pantallas/Quiz";
@@ -21,7 +22,8 @@ type Vista =
   | { t: "modulo"; bloqueRutaId: string; moduloId: string }
   | { t: "quiz"; bloqueRutaId: string; moduloId: string; tituloModulo: string }
   | { t: "evaluacion"; bloqueRutaId: string }
-  | { t: "calibre"; bloqueRutaId: string; moduloId: string };
+  | { t: "calibre"; bloqueRutaId: string; moduloId: string }
+  | { t: "mesa" };
 
 export function App() {
   const [conSesion, setConSesion] = useState(() => Boolean(token.leer()));
@@ -107,6 +109,16 @@ export function App() {
       />
     );
 
+  if (vista.t === "mesa")
+    return (
+      <Mesa
+        {...comun}
+        onVolver={() => { cargar(); setVista({ t: "ruta" }); }}
+        onXpGanado={cargar}
+        onSalir={salir}
+      />
+    );
+
   if (vista.t === "calibre")
     return (
       <Calibre
@@ -156,6 +168,7 @@ export function App() {
       yo={yo}
       bloques={ruta}
       onAbrirBloque={(bloqueRutaId) => setVista({ t: "bloque", bloqueRutaId })}
+      onIrA={(s) => setVista(s === "mesa" ? { t: "mesa" } : { t: "ruta" })}
       onSalir={salir}
     />
   );
