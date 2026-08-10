@@ -92,6 +92,22 @@ export const api = {
     return r.token;
   },
 
-  yo: () => pedir<Yo>("/auth/yo"),
+  /**
+   * Un 404 acá significa que la sesión apunta a alguien que ya no existe —pasa al
+   * recrear la base con `down -v`— y se trata como sesión caída, no como error de
+   * pantalla. Si no, la app queda mostrando "colaborador inexistente" sin salida.
+   */
+  yo: async () => {
+    try {
+      return await pedir<Yo>("/auth/yo");
+    } catch (e) {
+      if (e instanceof Error && /inexistente/i.test(e.message)) {
+        token.borrar();
+        throw new SesionCaida("tu sesión ya no es válida");
+      }
+      throw e;
+    }
+  },
+
   miRuta: () => pedir<BloqueDeRuta[]>("/mi/ruta"),
 };

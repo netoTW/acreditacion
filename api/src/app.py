@@ -15,6 +15,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
@@ -38,6 +39,35 @@ app = FastAPI(
         "**Para probar:** `POST /auth/dev/actuar-como` con el id de un colaborador, "
         "copia el token y pégalo en *Authorize* como `Bearer <token>`."
     ),
+)
+
+
+# ------------------------------------------------------------------- CORS
+#
+# El frontend se sirve en su propio puerto (5180) y la API en el suyo (8010), así
+# que toda llamada del navegador es cross-origin y necesita preflight. Con el
+# servidor de desarrollo de Vite esto no se notaba, porque su proxy dejaba todo
+# same-origin; al contenedorizar la web apareció.
+#
+# `ORIGENES_PERMITIDOS` (separados por coma) manda siempre. Si no está definida y
+# corre en modo dev, se acepta cualquier localhost o IP de red privada en
+# cualquier puerto, para poder abrir la web desde el teléfono. Fuera de modo dev y
+# sin la variable no se permite ningún origen: es preferible que falle visible a
+# que quede abierto por omisión.
+_origenes = [o.strip() for o in os.environ.get("ORIGENES_PERMITIDOS", "").split(",") if o.strip()]
+_es_dev = os.environ.get("MODO_DEV", "").lower() == "true"
+_regex_dev = r"^http://(localhost|127\.0\.0\.1|(10|192\.168)\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+)(:\d+)?$"
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origenes,
+    allow_origin_regex=None if _origenes else (_regex_dev if _es_dev else None),
+    # No se usan cookies: la sesión viaja en la cabecera Authorization. Dejarlo en
+    # False evita el modo con credenciales, que es más estricto y no hace falta.
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    max_age=600,
 )
 
 

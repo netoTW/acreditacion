@@ -32,6 +32,7 @@ services:
       PUERTO_API: ${PUERTO_API:-8010}          # solo para que el log muestre la URL correcta
       MODO_DEV: ${MODO_DEV:-true}              # login "actuar como" + clave de respuestas del contenido de prueba
       SECRETO_SESION: ${SECRETO_SESION:-dev-inseguro-cambiar-en-produccion}
+      ORIGENES_PERMITIDOS: ${ORIGENES_PERMITIDOS:-}
     ports:
       - "${PUERTO_API:-8000}:8000"
     depends_on:

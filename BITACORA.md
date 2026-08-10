@@ -187,6 +187,34 @@ implementados, pero el canal de navegador que uso mantiene el viewport en 1200 p
 pude probarlo en angosto. Queda para el director, que ya tiene el hábito de probar en
 teléfono.
 
+### Incidente: la pantalla de Ingreso no cargaba en el contenedor — CORS
+
+El director levantó el compose y la pantalla de Ingreso quedó vacía.
+
+**Causa raíz, y es mía.** Al contenedorizar la web, el frontend pasó a llamar a
+`http://localhost:8010` desde `http://localhost:5180`: **origen distinto**. Con el servidor
+de desarrollo de Vite esto no se veía porque su proxy dejaba todo same-origin. Verifiqué el
+contenedor con `curl` y revisando el bundle, pero **no lo abrí en el navegador**, que es
+donde el error existe: `curl` ignora CORS.
+
+Medido antes de tocar: el preflight `OPTIONS` daba **405** y el `GET` respondía 200 pero sin
+`Access-Control-Allow-Origin`, así que el navegador descartaba la respuesta.
+
+**Corregido** con `CORSMiddleware`: métodos GET/POST/OPTIONS, cabeceras `Authorization` y
+`Content-Type`, sin credenciales —la sesión va en cabecera, no en cookie—, y preflight
+cacheado 600 s. Los orígenes salen de `ORIGENES_PERMITIDOS`; si no está definida y corre en
+modo dev, se acepta localhost y red privada en cualquier puerto, para poder abrir la web
+**desde el teléfono**. Fuera de modo dev y sin la variable no se permite ningún origen:
+mejor que falle visible a que quede abierto por omisión.
+
+**Segundo bug, destapado por el primero.** Con la base recreada (`down -v`), el token viejo
+del navegador apuntaba a un colaborador inexistente y la app quedaba en una pantalla de
+error **sin salida**. Ahora una sesión que ya no identifica a nadie se trata como sesión
+caída y vuelve sola al Ingreso, y toda pantalla de error tiene botón de vuelta.
+
+**Lección, la misma que con el bundle de Colyseus:** lo que corre en el navegador se
+verifica en el navegador. `curl` no hace preflight, no aplica CORS y no ejecuta el bundle.
+
 ### Pendiente inmediato — son del director, no míos
 - **A4** túnel + 2 dispositivos reales fuera de localhost. Hasta que pase, ningún plazo es firme.
 - **A6** reconexión por refresh · **A7** los 3 dispositivos a la vez.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type BloqueDeRuta, type Yo } from "../api";
+import { SesionCaida, api, type BloqueDeRuta, type Yo } from "../api";
 import { MapaRuta } from "../componentes/MapaRuta";
 import { ESCALERA, Sidebar, progresoDeEscalon } from "../componentes/Sidebar";
 
@@ -12,10 +12,24 @@ export function MiRuta({ onSalir }: { onSalir: () => void }) {
   useEffect(() => {
     Promise.all([api.yo(), api.miRuta()])
       .then(([y, r]) => { setYo(y); setBloques(r); })
-      .catch((e) => setError(e.message));
-  }, []);
+      .catch((e) => {
+        // Si la sesión ya no sirve se vuelve al ingreso solo: quedarse en una
+        // pantalla de error sin salida es peor que pedir que entre de nuevo.
+        if (e instanceof SesionCaida) onSalir();
+        else setError(e.message);
+      });
+  }, [onSalir]);
 
-  if (error) return <div className="error">{error}</div>;
+  // Y ante cualquier otro error, siempre hay puerta de salida.
+  if (error)
+    return (
+      <div className="error">
+        <p>{error}</p>
+        <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onSalir}>
+          Volver al ingreso
+        </button>
+      </div>
+    );
   if (!yo || !bloques) return <div className="cargando">cargando tu ruta…</div>;
 
   const completos = bloques.filter((b) => b.estado === "completo").length;

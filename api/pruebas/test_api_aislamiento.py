@@ -183,3 +183,41 @@ def test_el_ranking_es_agregado_y_no_filtra_insignias_ajenas(cliente, docente):
     for f in filas:
         assert isinstance(f["insignias"], int)
         assert "medalla" not in f and "insignias_detalle" not in f
+
+
+# ------------------------------------------------------------------- CORS
+# El frontend vive en otro puerto que la API, así que toda llamada del navegador
+# es cross-origin. Con el proxy del servidor de desarrollo esto quedaba oculto;
+# al contenedorizar la web, la pantalla de Ingreso dejó de cargar.
+def test_el_preflight_options_se_responde(cliente):
+    r = cliente.options(
+        "/auth/dev/colaboradores",
+        headers={
+            "Origin": "http://localhost:5180",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+    assert r.status_code == 200, "el preflight daba 405 sin el middleware de CORS"
+    assert r.headers["access-control-allow-origin"] == "http://localhost:5180"
+    permitidos = r.headers["access-control-allow-methods"]
+    assert "GET" in permitidos and "POST" in permitidos
+    cabeceras = r.headers["access-control-allow-headers"].lower()
+    assert "authorization" in cabeceras and "content-type" in cabeceras
+
+
+def test_la_respuesta_trae_la_cabecera_de_origen(cliente):
+    r = cliente.get("/auth/dev/colaboradores", headers={"Origin": "http://localhost:5180"})
+    assert r.status_code == 200
+    assert r.headers["access-control-allow-origin"] == "http://localhost:5180"
+    assert len(r.json()) == 3
+
+
+def test_se_acepta_la_red_local_para_probar_desde_el_telefono(cliente):
+    r = cliente.get("/auth/dev/colaboradores", headers={"Origin": "http://192.168.0.27:5180"})
+    assert r.headers.get("access-control-allow-origin") == "http://192.168.0.27:5180"
+
+
+def test_un_origen_externo_no_recibe_la_cabecera(cliente):
+    r = cliente.get("/auth/dev/colaboradores", headers={"Origin": "https://sitio-ajeno.cl"})
+    assert "access-control-allow-origin" not in r.headers
