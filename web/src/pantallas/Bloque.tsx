@@ -9,6 +9,7 @@ type Props = {
   bloquesCompletos: number;
   onVolver: () => void;
   onAbrirModulo: (moduloId: string) => void;
+  onRendir: () => void;
   onSalir: () => void;
 };
 
@@ -112,13 +113,15 @@ export function Bloque(p: Props) {
                   {(b.max_reintentos ?? 0) - b.intentos_usados} intentos disponibles
                 </div>
               </div>
-              <div className="mod-status">
-                {b.obtenida > 0
-                  ? "aprobada"
-                  : b.evaluacion_disponible
-                    ? "en construcción"
-                    : `faltan ${b.modulos.length - b.modulos_completos} módulos`}
-              </div>
+              {b.obtenida > 0 ? (
+                <div className="mod-status" style={{ color: "var(--menta-deep)" }}>aprobada</div>
+              ) : b.evaluacion_disponible ? (
+                <button className="btn btn-primary" onClick={p.onRendir}>Rendir</button>
+              ) : (
+                <div className="mod-status">
+                  faltan {b.modulos.length - b.modulos_completos} módulos
+                </div>
+              )}
             </div>
           </div>
 

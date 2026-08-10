@@ -37,12 +37,13 @@
 - [x] D1a Pantalla de Ingreso ("actuar como") y Mi Ruta con mapa generado desde datos
 - [x] D1b Pantalla de bloque + visor de módulo con el microlearning generado
 - [x] D2a Quiz formativo gamificado: feedback vivo, racha, multiplicador, combo pop
-- [ ] D2b Evaluación final: sobria, resultado al final, autosave, reintentos barajados
+- [x] D2b Evaluación final: sobria, resultado al final, autosave, reintentos barajados
 - [ ] D3 Insignias y Open Badges + pantalla de medalla obtenida
 - [ ] D4 Ranking desde eventos con desempate S-15
 - [ ] D5 Dashboard desde eventos + rezagados agregados + registro de acceso (E-03)
 - [ ] D6 Juegos recableados al banco real, con tope de XP lúdico
-- [ ] D7 Navegación móvil (S-28) y accesibilidad en todas las pantallas
+- [x] D7a Navegación móvil (S-28) verificada a 900px: botón de menú y sidebar deslizante
+- [ ] D7b Accesibilidad completa en todas las pantallas
 - [ ] D8 Eliminar /clave-de-respuestas y MODO_DEV antes de producción
 - [x] D9 Servicio web en el compose: `docker compose up` levanta db, api, realtime y web
 

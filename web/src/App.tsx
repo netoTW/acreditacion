@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { SesionCaida, api, token, type BloqueDeRuta, type Yo } from "./api";
 import { Bloque } from "./pantallas/Bloque";
+import { Evaluacion } from "./pantallas/Evaluacion";
 import { Ingreso } from "./pantallas/Ingreso";
 import { MiRuta } from "./pantallas/MiRuta";
 import { Modulo } from "./pantallas/Modulo";
@@ -17,7 +18,8 @@ type Vista =
   | { t: "ruta" }
   | { t: "bloque"; bloqueRutaId: string }
   | { t: "modulo"; bloqueRutaId: string; moduloId: string }
-  | { t: "quiz"; bloqueRutaId: string; moduloId: string; tituloModulo: string };
+  | { t: "quiz"; bloqueRutaId: string; moduloId: string; tituloModulo: string }
+  | { t: "evaluacion"; bloqueRutaId: string };
 
 export function App() {
   const [conSesion, setConSesion] = useState(() => Boolean(token.leer()));
@@ -88,6 +90,18 @@ export function App() {
         onVolver={() => { cargar(); setVista({ t: "ruta" }); }}
         onAbrirModulo={(moduloId) =>
           setVista({ t: "modulo", bloqueRutaId: vista.bloqueRutaId, moduloId })}
+        onRendir={() => setVista({ t: "evaluacion", bloqueRutaId: vista.bloqueRutaId })}
+      />
+    );
+
+  if (vista.t === "evaluacion")
+    return (
+      <Evaluacion
+        {...comun}
+        bloqueRutaId={vista.bloqueRutaId}
+        onVolver={() => { cargar(); setVista({ t: "bloque", bloqueRutaId: vista.bloqueRutaId }); }}
+        onCambio={cargar}
+        onSalir={salir}
       />
     );
 

@@ -271,6 +271,37 @@ y el default subió de 200 a 400, porque una partida perfecta del quiz más larg
 
 Suite: **88 en verde**.
 
+### D2b — evaluación final, y el canario vivido en la interfaz
+
+Deliberadamente lo contrario al quiz: fondo claro, sin colores de acierto, sin racha, sin
+corrección pregunta a pregunta. La alternativa elegida se marca en tinta, **no en verde**:
+en la evaluación no hay señal de acierto hasta el final.
+
+**Las respuestas correctas no se revelan nunca**, ni aprobando ni reprobando. La pantalla lo
+explica: el reintento tiene que medir lo que sabes, no lo que recuerdas de la prueba anterior.
+
+**Autosave verificado con recarga real:** se respondió una pregunta, se recargó el navegador
+entero, y volvió con 1/5 respondida, el paso 1 marcado y el cursor en la pregunta 2 — la
+primera sin responder, no la uno.
+
+**El canario, vivido en pantalla.** Se reprobó a propósito: 0%, "Evaluación no aprobada",
+sin revelar nada, 2 intentos restantes. Y detrás: **0 insignias, bloque 1 sin completar,
+bloque 2 todavía cerrado**. Después se aprobó al 100%: medalla otorgada, 400 XP acreditable,
+bloque 1 completo y **bloque 2 abierto solo**. El respaldo queda auditable — intento nº2,
+puntaje 1.0, con su fecha.
+
+**Endurecimiento que apareció al construir:** `abrir_intento` no exigía haber visto los
+módulos. La pantalla lo escondía, pero bastaba llamar al endpoint para saltarse el bloque
+entero. Ahora lo exige el servidor.
+
+### S-28 cerrado — navegación móvil verificada
+
+Quedaba pendiente desde D1a porque el canal de navegador mantenía el viewport en 1200 px.
+Con la ventana en **900 px**: el sidebar está en `left: -280px`, el botón de menú aparece
+(`display: grid`), y al pulsarlo entra a `left: 0` con su velo. Funciona.
+
+Suite: **92 en verde**.
+
 ### Pendiente inmediato — son del director, no míos
 - **A4** túnel + 2 dispositivos reales fuera de localhost. Hasta que pase, ningún plazo es firme.
 - **A6** reconexión por refresh · **A7** los 3 dispositivos a la vez.

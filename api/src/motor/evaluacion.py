@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from .eventos import registrar_evento
-from .progreso import abrir_siguiente_bloque
+from .progreso import abrir_siguiente_bloque, modulos_completos
 
 XP_POR_NIVEL_ESTANDAR = {1: 200, 2: 300, 3: 400}   # S-37
 
@@ -36,6 +36,10 @@ class SinReintentos(Exception):
     pass
 
 
+class ModulosPendientes(Exception):
+    """La evaluación cierra el bloque: se rinde después de recorrerlo, no antes."""
+
+
 def abrir_intento(conn, *, colaborador_id: UUID, bloque_ruta_id: UUID) -> UUID:
     """Abre un intento. Si ya hay uno abierto y vigente, lo retoma (S-14)."""
     ev = conn.execute(
@@ -50,6 +54,16 @@ def abrir_intento(conn, *, colaborador_id: UUID, bloque_ruta_id: UUID) -> UUID:
     if ev is None:
         raise LookupError("el bloque de ruta no tiene evaluación asociada")
     evaluacion_id, max_reintentos, minutos_exp, n_items = ev
+
+    # La secuencia formativa se impone en el servidor, no solo en la pantalla: si
+    # solo la cuidara la UI, bastaría con llamar al endpoint para saltarse el bloque.
+    completos, total = modulos_completos(
+        conn, colaborador_id=colaborador_id, bloque_ruta_id=bloque_ruta_id
+    )
+    if total and completos < total:
+        raise ModulosPendientes(
+            f"faltan {total - completos} módulos por ver antes de rendir la evaluación"
+        )
 
     abierto = conn.execute(
         """

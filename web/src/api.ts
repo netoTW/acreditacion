@@ -120,6 +120,33 @@ export type ResultadoQuiz = {
   ya_jugado_hoy: boolean;
 };
 
+export type ItemEvaluacion = { item_id: string; enunciado: string; alternativas: string[] };
+
+export type Intento = {
+  id: string;
+  numero_intento: number;
+  estado: "abierto" | "enviado" | "expirado";
+  expira_en: string;
+  enviado_en: string | null;
+  puntaje: number | null;
+  aprobado: boolean | null;
+  bloque_ruta_id: string;
+  umbral_aprobacion: string | number;
+  max_reintentos: number;
+  dimension_nombre: string;
+  nivel_estandar: number;
+  items: ItemEvaluacion[];
+  respuestas: Record<string, number>;
+};
+
+export type ResultadoEvaluacion = {
+  aprobado: boolean;
+  puntaje: number;
+  insignia_id: string | null;
+  xp_otorgado: number;
+  reintentos_restantes: number;
+};
+
 /* --------------------------------------------------------------- llamadas */
 export const api = {
   personasDisponibles: () => pedir<PersonaDisponible[]>("/auth/dev/colaboradores"),
@@ -161,6 +188,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ respuestas }),
     }),
+
+  abrirIntento: (bloqueRutaId: string) =>
+    pedir<{ intento_id: string }>(`/bloques-ruta/${bloqueRutaId}/intentos`, { method: "POST" }),
+
+  intento: (id: string) => pedir<Intento>(`/intentos/${id}`),
+
+  /** Autosave por respuesta: si el navegador se cierra, al volver está todo (S-14). */
+  guardarRespuesta: (intentoId: string, item_id: string, indice_elegido: number) =>
+    pedir<{ guardada: boolean }>(`/intentos/${intentoId}/respuestas`, {
+      method: "POST",
+      body: JSON.stringify({ item_id, indice_elegido }),
+    }),
+
+  cerrarIntento: (id: string) =>
+    pedir<ResultadoEvaluacion>(`/intentos/${id}/cerrar`, { method: "POST" }),
 
   completarModulo: (id: string) =>
     pedir<{ ya_estaba: boolean; xp_otorgado: number }>(`/modulos/${id}/completar`, {

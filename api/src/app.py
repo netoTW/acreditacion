@@ -21,7 +21,9 @@ from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
 from identidad import SesionInvalida, proveedor_activo, verificar
-from motor.evaluacion import SinReintentos, abrir_intento, cerrar_intento, responder
+from motor.evaluacion import (
+    ModulosPendientes, SinReintentos, abrir_intento, cerrar_intento, responder,
+)
 from motor.eventos import estado as leer_estado
 from motor.progreso import completar_modulo
 from motor.quiz import puntuar_quiz
@@ -572,6 +574,8 @@ def crear_intento(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
             intento_id = abrir_intento(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id)
         except SinReintentos as e:
             raise HTTPException(409, str(e))
+        except ModulosPendientes as e:
+            raise HTTPException(409, str(e))
         except LookupError as e:
             raise HTTPException(404, str(e))
         datos = conn.execute(
@@ -593,6 +597,57 @@ def _intento_propio(intento_id: UUID, yo: UUID) -> None:
     )
     if not mio:
         raise HTTPException(404, "ese intento no es tuyo")
+
+
+@app.get("/intentos/{intento_id}", tags=["evaluación"])
+def ver_intento(intento_id: UUID, yo: UUID = Depends(colaborador_actual)):
+    """
+    El intento completo: sus ítems **en el orden en que se sirvieron** y las
+    respuestas ya guardadas.
+
+    Con esto se retoma donde iba (S-14): si el navegador se cierra a mitad de la
+    prueba, al volver está todo. Nunca incluye `indice_correcta`: es la nota que
+    respalda la acreditación y la respuesta no viaja jamás.
+    """
+    _intento_propio(intento_id, yo)
+
+    cab = filas(
+        """SELECT ie.id, ie.numero_intento, ie.estado, ie.expira_en, ie.enviado_en,
+                  ie.puntaje, ie.aprobado, ie.items_servidos, ie.bloque_ruta_id,
+                  ev.umbral_aprobacion, ev.max_reintentos,
+                  d.nombre_oficial AS dimension_nombre, bc.nivel_estandar
+             FROM intento_evaluacion ie
+             JOIN evaluacion ev ON ev.id = ie.evaluacion_id
+             JOIN bloque_ruta br ON br.id = ie.bloque_ruta_id
+             JOIN bloque_contenido bc ON bc.id = br.bloque_contenido_id
+             JOIN dimension d ON d.id = bc.dimension_id
+            WHERE ie.id = %s""",
+        (intento_id,),
+    )[0]
+
+    servidos = [str(x) for x in cab.pop("items_servidos")]
+    textos = {
+        str(f["item_id"]): f
+        for f in filas(
+            """SELECT id AS item_id, enunciado, alternativas
+                 FROM item_evaluacion WHERE id = ANY(%s::uuid[])""",
+            (servidos,),
+        )
+    }
+    guardadas = {
+        str(f["item_id"]): f["indice_elegido"]
+        for f in filas(
+            "SELECT item_id, indice_elegido FROM respuesta_intento WHERE intento_id = %s",
+            (intento_id,),
+        )
+    }
+
+    return {
+        **cab,
+        # El orden importa: es el barajado de ESTE intento (S-06).
+        "items": [textos[i] for i in servidos if i in textos],
+        "respuestas": guardadas,
+    }
 
 
 @app.post("/intentos/{intento_id}/respuestas", tags=["evaluación"])
