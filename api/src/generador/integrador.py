@@ -103,14 +103,14 @@ def _reemplazar_contenido(conn, bc_id, bloque: dict) -> tuple[int, int]:
             conn.execute(
                 """INSERT INTO item_quiz_formativo
                        (modulo_id, orden, enunciado, alternativas, indice_correcta,
-                        explicaciones, hash_enunciado)
-                   VALUES (%s,%s,%s,%s::jsonb,%s,%s::jsonb,%s)
+                        explicaciones, hash_enunciado, dificultad)
+                   VALUES (%s,%s,%s,%s::jsonb,%s,%s::jsonb,%s,%s)
                    ON CONFLICT (modulo_id, hash_enunciado) DO NOTHING""",
                 (modulo_id, orden, item["enunciado"],
                  json.dumps(item["alternativas"], ensure_ascii=False),
                  item["indice_correcta"],
                  json.dumps(item["explicaciones"], ensure_ascii=False),
-                 _hash(item["enunciado"])),
+                 _hash(item["enunciado"]), item.get("dificultad")),
             )
 
     ev = bloque["evaluacion"]
@@ -131,12 +131,13 @@ def _reemplazar_contenido(conn, bc_id, bloque: dict) -> tuple[int, int]:
     for item in ev["banco_items"]:
         conn.execute(
             """INSERT INTO item_evaluacion (evaluacion_id, enunciado, alternativas,
-                                            indice_correcta, explicaciones, hash_enunciado)
-               VALUES (%s,%s,%s::jsonb,%s,%s::jsonb,%s)
+                                            indice_correcta, explicaciones, hash_enunciado,
+                                            dificultad)
+               VALUES (%s,%s,%s::jsonb,%s,%s::jsonb,%s,%s)
                ON CONFLICT (evaluacion_id, hash_enunciado) DO NOTHING""",
             (ev_id, item["enunciado"], json.dumps(item["alternativas"], ensure_ascii=False),
              item["indice_correcta"], json.dumps(item["explicaciones"], ensure_ascii=False),
-             _hash(item["enunciado"])),
+             _hash(item["enunciado"]), item.get("dificultad")),
         )
 
     med = bloque["medalla"]

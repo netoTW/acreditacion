@@ -26,6 +26,7 @@ from motor.evaluacion import (
 )
 from motor.eventos import estado as leer_estado
 from motor.progreso import completar_modulo
+from motor.calibre import puntuar_calibre
 from motor.quiz import puntuar_quiz
 
 DSN = os.environ["DATABASE_URL"]
@@ -318,7 +319,9 @@ def mi_estado(yo: UUID = Depends(colaborador_actual)):
             raise HTTPException(404, "colaborador inexistente")
     return {
         "xp_acreditable": e.xp_acreditable,
+        "xp_ludico": e.xp_ludico,
         "xp_total": e.xp_total,
+        "xp_ranking": e.xp_ranking,
         "escalon": e.escalon,
         "insignias": e.insignias,
     }
@@ -501,6 +504,47 @@ def cerrar_quiz(modulo_id: UUID, cuerpo: ResultadoQuizEnviado,
         "mejor_racha": r.mejor_racha,
         "xp_otorgado": r.xp_otorgado,
         "ya_jugado_hoy": r.ya_jugado_hoy,
+    }
+
+
+class RespuestaCalibre(BaseModel):
+    item_id: UUID
+    indice_elegido: int = Field(ge=0, le=3)
+    seguro: bool
+
+
+class PartidaCalibre(BaseModel):
+    respuestas: list[RespuestaCalibre]
+
+
+@app.post("/modulos/{modulo_id}/calibre/resultado", tags=["quiz formativo"])
+def cerrar_calibre(modulo_id: UUID, cuerpo: PartidaCalibre,
+                   yo: UUID = Depends(colaborador_actual)):
+    """
+    Puntúa una partida de **Calibre** (M1).
+
+    Los ítems son los mismos que sirve `GET /modulos/{id}/quiz`: solo quiz
+    formativo, nunca el banco de la evaluación. Lo que cambia es la apuesta.
+
+    El servidor recalcula todo, **penalización incluida**: decir «Seguro» y fallar
+    resta. Si el puntaje lo propusiera el cliente, la apuesta sería decorativa.
+    El XP es lúdico y no mueve el escalón (S-04).
+    """
+    _modulo_propio(modulo_id, yo)
+    with pool.connection() as conn:
+        try:
+            r = puntuar_calibre(
+                conn, colaborador_id=yo, modulo_id=modulo_id,
+                respuestas=[{"item_id": x.item_id, "indice_elegido": x.indice_elegido,
+                             "seguro": x.seguro} for x in cuerpo.respuestas],
+            )
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+    return {
+        "total": r.total, "aciertos": r.aciertos,
+        "seguros": r.seguros, "seguros_acertados": r.seguros_acertados,
+        "puntos": r.puntos, "bono_calibrado": r.bono_calibrado,
+        "xp_otorgado": r.xp_otorgado, "ya_jugado_hoy": r.ya_jugado_hoy,
     }
 
 

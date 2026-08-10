@@ -1,7 +1,8 @@
 # Plan de diseño — capa de gamificación
 
-> **Fase 0 de los juegos.** Documento para aprobar antes de escribir código.
-> No se construye nada hasta que el director lo ratifique.
+> **Fase 0 de los juegos.** Aprobado por el director el 2026-08-10, con estos ajustes
+> ya incorporados: M2 acortado a 2 minutos, regla del tope de ranking ratificada, y
+> memoria de pares descartada. **M1 Calibre está construido.**
 
 ---
 
@@ -76,12 +77,18 @@ razonable. Calibre castiga justamente la trampa que el contenido enseña a evita
 *suena bien* con *corresponde*. Y la calibración —saber qué no sabes— es literalmente lo que
 un proceso de autoevaluación le pide a una institución.
 
-**Se alimenta de:** ítems del quiz del módulo + banco del bloque. Cero contenido nuevo.
-**Duración:** 60–90 s. **XP máximo:** ~250.
+**Se alimenta de:** **solo los ítems del quiz formativo del módulo** (4–6 por módulo).
+
+> **Corrección al plan original.** Había escrito «quiz del módulo + banco del bloque», y
+> está mal: Calibre muestra la respuesta correcta para dar feedback, y servir ítems del
+> banco con su correcta **filtraría la evaluación**. El banco no sale del servidor con su
+> respuesta, nunca. Con 4–6 ítems por módulo alcanza para una partida de 60–90 s.
+
+**Duración:** 60–90 s. **XP máximo:** ~250. **Contenido nuevo:** ninguno.
 
 ---
 
-### M2 · **Ascenso** — integrador de bloque, antes del examen
+### M2 · **Ascenso** — integrador de bloque, antes del examen · **2 min**
 
 > *Guardas lo que llevas, o subes un tramo más.*
 
@@ -94,7 +101,12 @@ Tres tramos por **dificultad del ítem**, que es una escalera cognitiva real:
 | 2 · Distinguir | cuál corresponde y cuál no | ítems de emparejamiento |
 | 3 · Aplicar | qué hacer ante un caso | ítems de escenario |
 
-**3 vidas.** Cada error cuesta una. Cuatro preguntas por tramo.
+**2 vidas.** Cada error cuesta una. **Tres preguntas por tramo, nueve en total.**
+
+> Ajuste del director: el tope es **2 minutos**. Con nueve preguntas y dos decisiones de
+> guardar-o-subir la partida entra cómoda, y **no hay reloj**, así que el límite es de
+> diseño y no presión sobre el jugador. Se bajó de 3 vidas a 2 justamente porque el juego
+> es más corto: con nueve preguntas, tres vidas casi no se pierden y la tensión se diluye.
 
 Al cerrar cada tramo, **la decisión**:
 
@@ -117,7 +129,7 @@ contenido ya tiene incorporada. Y funciona igual en las 15 unidades, porque **to
 bancos tienen ítems de los tres tipos, sea el bloque de nivel 1 o de nivel 3.
 
 **Se alimenta de:** banco completo del bloque (18–30 ítems), agrupado por dificultad.
-**Duración:** 3–5 min. **XP máximo:** ~700.
+**Duración:** ~2 min. **XP máximo:** ~700.
 
 ---
 
@@ -155,14 +167,16 @@ la fuente: el proceso avanza cuando el grupo avanza.
 
 | Momento | Motor | Duración | Paga XP |
 |---|---|---|---|
-| Después de leer un módulo | **M0 quiz** o **M1 Calibre**, a elección | 60–90 s | 1 vez al día por módulo |
-| Con todos los módulos vistos, antes del examen | **M2 Ascenso** | 3–5 min | 1 vez al día por bloque |
+| Después de leer un módulo | **M0 quiz** y **M1 Calibre** | 60–90 s | tope diario **compartido** por módulo |
+| Con todos los módulos vistos, antes del examen | **M2 Ascenso** | ~2 min | 1 vez al día por bloque |
 | En la Plaza, cuando hay gente | **M3 Comité** | 5–8 min | 1 vez al día por sala |
 
 **La variedad se resuelve por elección, no por imposición.** En cada módulo se ofrecen los
-dos formatos solitarios y se destaca el que todavía no jugaste ahí. Quien quiera repetir
-solo el quiz, puede; quien quiera solo Calibre, también. Repetir siempre está permitido —
-lo que no se repite es el pago.
+dos formatos solitarios.
+
+**Cómo se paga:** cada juego paga una vez al día, pero **el tope diario es del módulo**, no
+del juego: jugar los dos rinde como máximo lo mismo que exprimir uno. Así probar ambos no se
+castiga —queríamos variedad— y tampoco se convierte en doble cobro.
 
 **Cuántas partidas juega una persona en todo el recorrido:**
 
@@ -187,7 +201,7 @@ Más la Plaza, que es libre. Práctica sin pago: ilimitada.
   cliente manda qué eligió; nada más. Ya funciona así en el quiz.
 - **Tope por juego, por día**, configurable por mecánica (S-05).
 
-### Una decisión que necesito que ratifiques
+### Regla ratificada por el director
 
 Si los tres motores pagan sin límite, el XP de juego termina **superando al acreditable** y
 el ranking pasa a medir cuánto juegas, no cuánto avanzas. Propongo una regla simple:
@@ -196,6 +210,9 @@ el ranking pasa a medir cuánto juegas, no cuánto avanzas. Propongo una regla s
 > El ranking suma XP lúdico **hasta un tope igual a tu XP acreditable**.
 
 Quien no avanza en su ruta no escala jugando. Quien avanza, es premiado por jugar.
+
+Vigente en la base desde la migración 005 y verificado en el sistema corriendo: un
+colaborador con 20 XP lúdico y 0 acreditable queda con **posición de ranking 0**.
 
 ---
 
@@ -221,10 +238,9 @@ juego**: los motores leen lo que haya.
 
 Dos hallazgos al revisar la base para armar este plan:
 
-1. **`dificultad` no se persiste.** El Generador la produce por ítem (1 reconocer, 2
-   distinguir, 3 aplicar) pero la migración 001 nunca creó la columna, así que se pierde al
-   integrar. **M2 la necesita** para armar sus tramos. Es una migración aditiva y dos líneas
-   en el integrador.
+1. ~~**`dificultad` no se persiste.**~~ **Resuelto** (migración 004): la columna existe en
+   `item_evaluacion` y en `item_quiz_formativo`, el integrador la guarda, y los 360 ítems del
+   banco quedaron con su dificultad repartida en los tres tramos que M2 necesita.
 2. **`criterio` tampoco existe como tabla**, aunque el Generador emite los códigos. **Ninguna
    de estas tres mecánicas lo necesita**, así que no se construye ahora; queda anotado por si
    más adelante se quiere agrupar por criterio.
@@ -258,9 +274,9 @@ Dos hallazgos al revisar la base para armar este plan:
 
 ## 9. Orden de construcción propuesto
 
-1. **Prerrequisito:** persistir `dificultad` (migración + integrador).
-2. **M1 Calibre** — el más barato y el que más variedad agrega por peso.
-3. **M2 Ascenso** — la pieza con más tensión; cierra el recorrido del bloque.
+1. ~~Prerrequisito: persistir `dificultad`.~~ **Hecho** (migración 004).
+2. ~~**M1 Calibre.**~~ **Hecho y navegable.**
+3. **M2 Ascenso** — la pieza con más tensión; cierra el recorrido del bloque. **Siguiente.**
 4. **M3 Comité** — el último, porque depende del realtime y de que M1 exista.
 
 Cada uno se muestra navegable antes de pasar al siguiente, como venimos trabajando.

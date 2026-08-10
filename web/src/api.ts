@@ -112,6 +112,17 @@ export type ItemQuiz = {
   explicaciones: string[];
 };
 
+export type ResultadoCalibre = {
+  total: number;
+  aciertos: number;
+  seguros: number;
+  seguros_acertados: number;
+  puntos: number;
+  bono_calibrado: boolean;
+  xp_otorgado: number;
+  ya_jugado_hoy: boolean;
+};
+
 export type ResultadoQuiz = {
   total: number;
   aciertos: number;
@@ -203,6 +214,16 @@ export const api = {
 
   cerrarIntento: (id: string) =>
     pedir<ResultadoEvaluacion>(`/intentos/${id}/cerrar`, { method: "POST" }),
+
+  /** M1 Calibre: el servidor recalcula el puntaje, penalización incluida. */
+  resultadoCalibre: (
+    moduloId: string,
+    respuestas: { item_id: string; indice_elegido: number; seguro: boolean }[],
+  ) =>
+    pedir<ResultadoCalibre>(`/modulos/${moduloId}/calibre/resultado`, {
+      method: "POST",
+      body: JSON.stringify({ respuestas }),
+    }),
 
   completarModulo: (id: string) =>
     pedir<{ ya_estaba: boolean; xp_otorgado: number }>(`/modulos/${id}/completar`, {

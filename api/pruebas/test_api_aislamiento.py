@@ -476,3 +476,97 @@ def test_aprobar_al_umbral_si_otorga_y_deja_respaldo(cliente, docente):
     assert len(insignias) == 1
     assert insignias[0]["puntaje_del_respaldo"] == 1.0
     assert insignias[0]["numero_intento"] == 2, "la respalda el intento aprobado, el segundo"
+
+
+# ------------------------------------------------------- M1 · Calibre
+def _items_quiz(cliente, token, n_modulo=0):
+    ruta = cliente.get("/mi/ruta", headers=_cab(token)).json()
+    mod = cliente.get(
+        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(token)
+    ).json()[n_modulo]
+    return mod, cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(token)).json()
+
+
+def test_calibre_premia_arriesgar_y_castiga_equivocarse_arriesgando(cliente, docente):
+    mod, items = _items_quiz(cliente, docente, 0)
+    # Todo correcto y todo "Seguro": 60 por ítem + bono de calibrado
+    r = cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(docente),
+                     json={"respuestas": [{"item_id": i["id"], "indice_elegido": i["indice_correcta"],
+                                           "seguro": True} for i in items]}).json()
+    assert r["puntos"] == len(items) * 60 + 50
+    assert r["bono_calibrado"] is True
+    assert r["xp_otorgado"] == r["puntos"]
+
+
+def test_calibre_el_marcador_puede_quedar_negativo_pero_el_xp_no(cliente, docente):
+    """El castigo es no ganar, no perder XP ya ganado."""
+    mod, items = _items_quiz(cliente, docente, 1)
+    r = cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(docente),
+                     json={"respuestas": [{"item_id": i["id"],
+                                           "indice_elegido": (i["indice_correcta"] + 1) % 4,
+                                           "seguro": True} for i in items]}).json()
+    assert r["puntos"] == -40 * len(items), "en pantalla el marcador baja"
+    assert r["xp_otorgado"] == 0, "pero nunca se resta XP"
+    assert r["bono_calibrado"] is False
+
+
+def test_calibre_ir_siempre_a_lo_seguro_no_gana_el_bono(cliente, docente):
+    """El bono premia calibración, no volumen: hay que declarar seguro y acertar."""
+    mod, items = _items_quiz(cliente, docente, 2)
+    r = cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(docente),
+                     json={"respuestas": [{"item_id": i["id"], "indice_elegido": i["indice_correcta"],
+                                           "seguro": False} for i in items]}).json()
+    assert r["puntos"] == len(items) * 25
+    assert r["bono_calibrado"] is False, "sin ningún 'Seguro' no hay calibrado que premiar"
+
+
+def test_calibre_un_solo_seguro_fallado_rompe_el_bono(cliente, docente):
+    mod, items = _items_quiz(cliente, docente, 3)
+    respuestas = []
+    for n, i in enumerate(items):
+        malo = n == 0
+        respuestas.append({"item_id": i["id"],
+                           "indice_elegido": (i["indice_correcta"] + 1) % 4 if malo else i["indice_correcta"],
+                           "seguro": True})
+    r = cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(docente),
+                     json={"respuestas": respuestas}).json()
+    assert r["seguros"] == len(items) and r["seguros_acertados"] == len(items) - 1
+    assert r["bono_calibrado"] is False
+
+
+def test_calibre_es_ludico_y_no_toca_el_acreditable(cliente, docente):
+    antes = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    mod, items = _items_quiz(cliente, docente, 0)
+    cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(docente),
+                 json={"respuestas": [{"item_id": i["id"], "indice_elegido": i["indice_correcta"],
+                                       "seguro": True} for i in items]})
+    despues = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    assert despues["xp_acreditable"] == antes["xp_acreditable"]
+    assert despues["escalon"] == antes["escalon"]
+    assert despues["insignias"] == antes["insignias"]
+
+
+def test_calibre_no_se_juega_el_modulo_de_otro_cargo(cliente, docente, rector):
+    ruta_rector = cliente.get("/mi/ruta", headers=_cab(rector)).json()
+    ajeno = cliente.get(
+        f"/bloques-ruta/{ruta_rector[0]['bloque_ruta_id']}/modulos", headers=_cab(rector)
+    ).json()[0]
+    r = cliente.post(f"/modulos/{ajeno['id']}/calibre/resultado", headers=_cab(docente),
+                     json={"respuestas": []})
+    assert r.status_code == 404
+
+
+# ------------------------------------------- tope de ranking (ratificado)
+def test_el_ranking_suma_ludico_solo_hasta_el_acreditable(cliente, docente):
+    """«Jugar puede duplicar tu posición, nunca reemplazar el recorrido.»"""
+    e = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    assert e["xp_ranking"] == e["xp_acreditable"] + min(e["xp_ludico"], e["xp_acreditable"])
+    assert e["xp_ranking"] <= 2 * e["xp_acreditable"]
+
+
+def test_quien_no_avanza_no_escala_jugando(cliente, rector):
+    """Con XP acreditable en cero, todo el XP lúdico aporta cero al ranking."""
+    fila = [f for f in cliente.get("/ranking", headers=_cab(rector)).json()
+            if f["xp_acreditable"] == 0]
+    for f in fila:
+        assert f["xp_ranking"] == 0, "sin recorrido, jugar no da posición"

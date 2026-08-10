@@ -29,7 +29,10 @@ TOPE_DIARIO_XP_LUDICO = int(os.environ.get("TOPE_DIARIO_XP_LUDICO", "400"))
 @dataclass(frozen=True)
 class Estado:
     xp_acreditable: int
+    xp_ludico: int
     xp_total: int
+    # Lo que ordena el ranking: acreditable + lúdico hasta igualarlo (migración 005).
+    xp_ranking: int
     escalon: str
     insignias: int
 
@@ -105,7 +108,7 @@ def estado(conn, colaborador_id: UUID) -> Estado:
     """Lee el estado DERIVADO. No hay columnas `xp` ni `nivel` que consultar."""
     fila = conn.execute(
         """
-        SELECT xp_acreditable, xp_total, escalon, insignias
+        SELECT xp_acreditable, xp_ludico, xp_total, xp_ranking, escalon, insignias
           FROM estado_colaborador
          WHERE colaborador_id = %s
         """,
@@ -113,5 +116,6 @@ def estado(conn, colaborador_id: UUID) -> Estado:
     ).fetchone()
     if fila is None:
         raise LookupError("colaborador inexistente")
-    return Estado(xp_acreditable=int(fila[0]), xp_total=int(fila[1]),
-                  escalon=fila[2], insignias=int(fila[3]))
+    return Estado(xp_acreditable=int(fila[0]), xp_ludico=int(fila[1]),
+                  xp_total=int(fila[2]), xp_ranking=int(fila[3]),
+                  escalon=fila[4], insignias=int(fila[5]))

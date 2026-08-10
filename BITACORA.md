@@ -302,6 +302,38 @@ Con la ventana en **900 px**: el sidebar está en `left: -280px`, el botón de m
 
 Suite: **92 en verde**.
 
+### D6 — arranca la capa de gamificación: prerrequisitos y M1 Calibre
+
+**Plan de juegos aprobado** con tres ajustes del director: M2 a 2 minutos, regla del tope de
+ranking ratificada, y memoria de pares descartada.
+
+**Corrección a mi propio plan, antes de implementarlo.** Había escrito que Calibre se
+alimentaría del quiz del módulo **y del banco de la evaluación**. Está mal: Calibre muestra
+la respuesta correcta para dar feedback, y servir ítems del banco con su correcta habría
+**filtrado la evaluación** por un endpoint nuevo. M1 usa solo ítems de quiz formativo, que
+son los que ya están diseñados para revelarse.
+
+**Migración 004 — dificultad.** Era el prerrequisito declarado. Los 360 ítems del banco
+quedaron con su dificultad repartida en los tres tramos que M2 necesita.
+
+**Migración 005 — tope de ranking.** «Jugar puede como mucho duplicar tu posición, nunca
+reemplazar el recorrido»: el ranking suma XP lúdico hasta igualar el acreditable. Verificado
+en el sistema corriendo — con 20 XP de juego y 0 acreditable, la posición es 0.
+
+**M1 Calibre.** Eliges alternativa y después declaras confianza. «Seguro» acertado +60,
+fallado **−40**; «Creo» +25 / 0. Bono de calibrado si todos los «Seguro» resultan correctos.
+Sin reloj: la tensión sale de la apuesta.
+
+Tres decisiones de implementación que sostienen el diseño:
+
+- **Antes de apostar no hay verde ni rojo.** La alternativa elegida se marca en blanco. Si
+  el color delatara el acierto antes de la apuesta, no habría apuesta.
+- **El marcador puede quedar negativo en pantalla, el XP no.** El castigo es no ganar, no
+  perder XP ya ganado.
+- **El bono premia calibración, no volumen:** ir siempre a «Creo» y acertar todo no lo gana.
+
+Suite: **100 en verde.**
+
 ### Pendiente inmediato — son del director, no míos
 - **A4** túnel + 2 dispositivos reales fuera de localhost. Hasta que pase, ningún plazo es firme.
 - **A6** reconexión por refresh · **A7** los 3 dispositivos a la vez.

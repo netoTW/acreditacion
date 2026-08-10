@@ -42,9 +42,10 @@
 - [ ] D4 Ranking desde eventos con desempate S-15
 - [ ] D5 Dashboard desde eventos + rezagados agregados + registro de acceso (E-03)
 - [x] D6.0 Fase 0 de los juegos: plan de diseño de la capa de gamificación (docs/DISENO-GAMIFICACION.md)
-- [ ] D6.1 Prerrequisito: persistir `dificultad` del ítem (migración + integrador)
-- [ ] D6.2 M1 Calibre — juego de módulo, apuesta de confianza, sin reloj
-- [ ] D6.3 M2 Ascenso — integrador de bloque, press-your-luck por tramos de dificultad
+- [x] D6.1 Prerrequisito: dificultad persistida (migración 004) — 360/360 ítems con sus tres tramos
+- [x] D6.1b Tope de ranking: el XP lúdico cuenta hasta el acreditable (migración 005)
+- [x] D6.2 M1 Calibre — juego de módulo, apuesta de confianza, sin reloj
+- [ ] D6.3 M2 Ascenso — integrador de bloque, ~2 min, 3 tramos × 3 preguntas, 2 vidas
 - [ ] D6.4 M3 Comité relámpago — social en la Plaza, reusa el motor de M1
 - [x] D7a Navegación móvil (S-28) verificada a 900px: botón de menú y sidebar deslizante
 - [ ] D7b Accesibilidad completa en todas las pantallas

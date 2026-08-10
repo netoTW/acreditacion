@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { SesionCaida, api, token, type BloqueDeRuta, type Yo } from "./api";
 import { Bloque } from "./pantallas/Bloque";
+import { Calibre } from "./pantallas/Calibre";
 import { Evaluacion } from "./pantallas/Evaluacion";
 import { Ingreso } from "./pantallas/Ingreso";
 import { MiRuta } from "./pantallas/MiRuta";
@@ -19,7 +20,8 @@ type Vista =
   | { t: "bloque"; bloqueRutaId: string }
   | { t: "modulo"; bloqueRutaId: string; moduloId: string }
   | { t: "quiz"; bloqueRutaId: string; moduloId: string; tituloModulo: string }
-  | { t: "evaluacion"; bloqueRutaId: string };
+  | { t: "evaluacion"; bloqueRutaId: string }
+  | { t: "calibre"; bloqueRutaId: string; moduloId: string };
 
 export function App() {
   const [conSesion, setConSesion] = useState(() => Boolean(token.leer()));
@@ -105,6 +107,18 @@ export function App() {
       />
     );
 
+  if (vista.t === "calibre")
+    return (
+      <Calibre
+        {...comun}
+        bloqueRutaId={vista.bloqueRutaId}
+        moduloId={vista.moduloId}
+        onVolver={() => setVista({ t: "modulo", bloqueRutaId: vista.bloqueRutaId, moduloId: vista.moduloId })}
+        onXpGanado={cargar}
+        onSalir={salir}
+      />
+    );
+
   if (vista.t === "quiz")
     return (
       <Quiz
@@ -130,6 +144,8 @@ export function App() {
         onPracticar={() =>
           setVista({ t: "quiz", bloqueRutaId: vista.bloqueRutaId, moduloId: vista.moduloId,
                      tituloModulo: "Módulo" })}
+        onCalibrar={() =>
+          setVista({ t: "calibre", bloqueRutaId: vista.bloqueRutaId, moduloId: vista.moduloId })}
         onXpGanado={cargar}
         onSalir={salir}
       />

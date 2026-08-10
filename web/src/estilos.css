@@ -432,3 +432,41 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .eval-nav { width: 100%; }
   .eval-nav .btn { flex: 1; }
 }
+
+/* --------------------------------------------------- M1 Calibre (D6.2) */
+/* Comparte el escenario del quiz, pero su momento propio es la apuesta:
+   antes de apostar NO hay verde ni rojo, solo "esta elegiste". */
+.tabla-apuesta { margin: 6px auto 14px; border-collapse: collapse; font-size: 14px; color: #fff; }
+.tabla-apuesta th { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,.5); padding: 0 14px 6px; font-weight: 700; }
+.tabla-apuesta td { padding: 7px 14px; border-top: 1px solid var(--linea-osc); font-family: var(--mono); }
+.tabla-apuesta td:first-child { font-family: var(--body); text-align: left; }
+.tabla-apuesta .sube { color: var(--menta); font-weight: 700; }
+.tabla-apuesta .baja { color: var(--carmin-soft); font-weight: 700; }
+.intro-bono { font-size: 13.5px; color: rgba(255,255,255,.55) !important; margin-bottom: 20px !important; }
+
+.t-opt.marcada { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.55); }
+.t-opt.marcada .key { background: #fff; color: var(--tinta); }
+
+.hud-chip.negativo { color: var(--carmin-soft); border-color: rgba(255, 107, 130, 0.5); }
+.hud-chip .delta { font-size: 12px; padding: 1px 7px; border-radius: 20px; margin-left: 2px; animation: destello 0.9s ease; }
+.hud-chip .delta.sube { background: rgba(45, 212, 167, 0.22); color: var(--menta); }
+.hud-chip .delta.baja { background: rgba(225, 29, 60, 0.25); color: var(--carmin-soft); }
+@keyframes destello { 0% { transform: scale(1.5); opacity: 0; } 30% { transform: scale(1); opacity: 1; } 100% { opacity: 1; } }
+
+.apuesta { margin-top: 22px; padding: 20px; border-radius: 16px; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--linea-osc); }
+.apuesta-titulo { font-family: var(--disp); font-size: 17px; font-weight: 700; text-align: center; margin-bottom: 14px; }
+.apuesta-botones { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.apuesta-btn {
+  display: flex; flex-direction: column; gap: 4px; align-items: center;
+  padding: 16px 18px; border-radius: 14px; border: 1.5px solid var(--linea-osc);
+  background: rgba(255, 255, 255, 0.07); color: #fff; transition: 0.15s;
+}
+.apuesta-btn b { font-family: var(--disp); font-size: 18px; font-weight: 800; }
+.apuesta-btn span { font-family: var(--mono); font-size: 11px; color: rgba(255, 255, 255, 0.55); }
+.apuesta-btn:hover { transform: translateY(-2px); }
+.apuesta-btn.seguro { border-color: rgba(244, 183, 64, 0.55); }
+.apuesta-btn.seguro:hover { background: rgba(244, 183, 64, 0.18); box-shadow: 0 10px 24px rgba(244, 183, 64, 0.25); }
+.apuesta-btn.seguro b { color: var(--oro); }
+.apuesta-btn.creo:hover { background: rgba(255, 255, 255, 0.13); }
+
+@media (max-width: 1080px) { .apuesta-botones { grid-template-columns: 1fr; } }
