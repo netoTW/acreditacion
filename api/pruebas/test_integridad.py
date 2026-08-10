@@ -1,9 +1,8 @@
 """
 Regresión de integridad — el set congelado de docs/contenido/REGLAS-VALIDADOR.md.
 
-Cubre I-1 a I-9. I-10 (aislamiento de contenido entre cargos) es de capa API y se
-verifica en la Tanda 4; está declarado abajo como pendiente explícito para que no
-se dé por cubierto.
+Cubre I-1 a I-9. I-10 (aislamiento de contenido entre cargos) es propiedad de los
+endpoints, no de la base, y se verifica en `test_api_aislamiento.py`.
 """
 import psycopg
 import pytest
@@ -154,7 +153,5 @@ def test_el_escalon_se_deriva_del_xp_acreditable(db, xp, escalon):
     assert db.execute("SELECT fn_escalon(%s)", (xp,)).fetchone()[0] == escalon
 
 
-# ------------------------------------------------------- pendiente declarado
-@pytest.mark.skip(reason="I-10 es de capa API: se implementa y verifica en la Tanda 4")
-def test_i10_no_se_sirve_contenido_de_otro_cargo():
-    ...
+# I-10 (aislamiento por cargo) es propiedad de los endpoints, no de la base:
+# se verifica en pruebas/test_api_aislamiento.py.

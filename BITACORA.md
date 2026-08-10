@@ -151,6 +151,42 @@ tocar el modelo — ese es el swap de `fuente_de_contenido`.
 Verificado que la API sirve **exactamente** lo que produce el generador: mismos módulos,
 mismo banco. Suite completa: **63 en verde, 1 declarada pendiente**.
 
+### C4 — identidad, y con eso I-10 cerrado
+
+Adapter conmutable (S-18): `ProveedorDev` para el login "actuar como" y `ProveedorEntra`
+con el contrato listo, pendiente de tenant. Sesión firmada con HMAC de la biblioteca
+estándar, sin dependencias nuevas y sin estado en servidor. **No hay contraseñas en
+ninguna parte**, ni en dev ni en producción.
+
+**I-10 cerrado.** Ningún endpoint recibe `colaborador_id` por parámetro: se deriva de la
+sesión. Todo acceso a contenido pasa por `_bloque_propio()`. Y responde **404, no 403**:
+un 403 confirmaría que el bloque existe, y eso ya filtra información del contenido de otro
+cargo. Hay un test que verifica que la respuesta al bloque ajeno sea indistinguible de la
+de un id inventado. 11 pruebas nuevas; la suite quedó en **74 en verde y cero pendientes**.
+
+Un detalle de entorno: la API usaba `str | None` en una firma que FastAPI evalúa en
+runtime, y la máquina del director tiene Python 3.9. Cambiado a `Optional[str]` para que
+la suite se pueda correr en local, aunque el contenedor use 3.12.
+
+### D1a — primera pantalla navegable
+
+Vite + React + TypeScript (ADR-002), con los tokens de la cáscara literales y las fuentes
+**autohospedadas** vía `@fontsource` (S-26): ya no dependen de Google Fonts.
+
+- **Ingreso**: elección de colaborador. Sin formulario de correo y contraseña, que se
+  eliminó a propósito de la cáscara.
+- **Mi Ruta**: el mapa **se genera desde datos** (S-29) — serpentina calculada para N
+  bloques más la graduación, con curva suave, y la línea de avance por `stroke-dasharray`.
+  Cambiar el tamaño de la ruta ya no toca el dibujo.
+- La marca de **contenido de prueba se ve** en la barra superior (S-27), el estado de cada
+  bloque va en texto además de color, y hay foco visible en todo lo operable.
+- El compose ahora levanta **cuatro servicios**: db, api, realtime y web.
+
+**No verificado:** el layout móvil (S-28). El botón de menú y el sidebar deslizante están
+implementados, pero el canal de navegador que uso mantiene el viewport en 1200 px y no
+pude probarlo en angosto. Queda para el director, que ya tiene el hábito de probar en
+teléfono.
+
 ### Pendiente inmediato — son del director, no míos
 - **A4** túnel + 2 dispositivos reales fuera de localhost. Hasta que pase, ningún plazo es firme.
 - **A6** reconexión por refresh · **A7** los 3 dispositivos a la vez.

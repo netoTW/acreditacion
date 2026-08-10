@@ -22,3 +22,6 @@ api/.venv/
 # muestras de contenido exportadas (regenerables con api/exportar-contenido.py)
 contenido-muestra.json
 contenido-generado.json
+
+# build del frontend
+web/dist/

@@ -30,7 +30,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       PUERTO_API: ${PUERTO_API:-8010}          # solo para que el log muestre la URL correcta
-      MODO_DEV: ${MODO_DEV:-true}              # habilita la clave de respuestas del contenido de prueba
+      MODO_DEV: ${MODO_DEV:-true}              # login "actuar como" + clave de respuestas del contenido de prueba
+      SECRETO_SESION: ${SECRETO_SESION:-dev-inseguro-cambiar-en-produccion}
     ports:
       - "${PUERTO_API:-8000}:8000"
     depends_on:
@@ -56,6 +57,22 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API: http://localhost:${PUERTO_API:-8010}
+    ports:
+      - "${PUERTO_WEB:-5180}:5180"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5180/ >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
 
 volumes:
   datos_db:

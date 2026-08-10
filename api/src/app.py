@@ -1,35 +1,42 @@
 """
 API de Somos Calidad.
 
-`/docs` es la primera interfaz de prueba del director (CLAUDE.md §11): con el seed
-cargado, se puede recorrer el sistema entero desde el navegador sin frontend.
+`/docs` es la primera interfaz de prueba del director (CLAUDE.md §11).
+
+**Aislamiento por cargo (I-10 · CLAUDE.md §3).** Ningún endpoint recibe un
+`colaborador_id` por parámetro: se deriva de la sesión. Y todo acceso a contenido
+pasa por `_bloque_propio()`, que verifica que el bloque esté en la ruta de quien
+pregunta. No existe forma de pedir un bloque por id y recibirlo si no es tuyo.
 """
 from __future__ import annotations
 
 import os
+from typing import Optional
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import RedirectResponse
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
-from motor.evaluacion import (
-    SinReintentos, abrir_intento, cerrar_intento, responder,
-)
+from identidad import SesionInvalida, proveedor_activo, verificar
+from motor.evaluacion import SinReintentos, abrir_intento, cerrar_intento, responder
 from motor.eventos import estado as leer_estado
 
 DSN = os.environ["DATABASE_URL"]
 pool = ConnectionPool(DSN, min_size=1, max_size=10, open=True)
+identidad = proveedor_activo()
 
 app = FastAPI(
     title="Somos Calidad · API",
-    version="0.3.0",
+    version="0.4.0",
     description=(
         "Portal de gamificación de la ruta de acreditación de AIEP.\n\n"
         "El contenido de esta etapa está marcado `es_contenido_prueba` y **no es "
         "material de acreditación oficial**. La estructura —5 dimensiones, 13 hitos, "
-        "gobernanza— sí sale de la ruta institucional real."
+        "gobernanza— sí sale de la ruta institucional real.\n\n"
+        "**Para probar:** `POST /auth/dev/actuar-como` con el id de un colaborador, "
+        "copia el token y pégalo en *Authorize* como `Bearer <token>`."
     ),
 )
 
@@ -39,6 +46,56 @@ def filas(sql: str, args: tuple = ()) -> list[dict]:
         cur = conn.execute(sql, args)
         cols = [c.name for c in cur.description]
         return [dict(zip(cols, f)) for f in cur.fetchall()]
+
+
+# ============================================================== identidad
+def colaborador_actual(authorization: Optional[str] = Header(default=None)) -> UUID:
+    """
+    Quién eres. Sale de la sesión firmada, nunca de un parámetro.
+
+    `Optional[str]` y no `str | None`: FastAPI evalúa esta anotación en tiempo de
+    ejecución y la máquina del director corre Python 3.9. El contenedor usa 3.12,
+    pero la suite tiene que poder correrse en local.
+    """
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(401, "falta la cabecera Authorization: Bearer <token>")
+    try:
+        datos = verificar(authorization.split(" ", 1)[1].strip())
+    except SesionInvalida as e:
+        raise HTTPException(401, str(e))
+    return UUID(datos["sub"])
+
+
+def con_permiso_institucional(yo: UUID = Depends(colaborador_actual)) -> UUID:
+    """
+    El permiso sale de la membresía de comité, no del cargo (S-35): lo tiene quien
+    está en Aseguramiento de la Calidad, en el Comité Central o en la Junta.
+    """
+    tiene = filas("SELECT 1 FROM permiso_institucional WHERE colaborador_id = %s", (yo,))
+    if not tiene:
+        raise HTTPException(403, "requiere permiso institucional")
+    return yo
+
+
+def _bloque_propio(bloque_ruta_id: UUID, yo: UUID) -> dict:
+    """
+    El candado de I-10.
+
+    Devuelve el bloque solo si está en la ruta de quien pregunta. Responde 404 y no
+    403 a propósito: un 403 confirmaría que el bloque existe, y eso ya filtra
+    información sobre el contenido de otro cargo.
+    """
+    encontrado = filas(
+        """SELECT br.id, br.bloque_contenido_id, bc.es_contenido_prueba
+             FROM bloque_ruta br
+             JOIN ruta r ON r.id = br.ruta_id
+             JOIN bloque_contenido bc ON bc.id = br.bloque_contenido_id
+            WHERE br.id = %s AND r.colaborador_id = %s""",
+        (bloque_ruta_id, yo),
+    )
+    if not encontrado:
+        raise HTTPException(404, "ese bloque no está en tu ruta")
+    return encontrado[0]
 
 
 @app.get("/", include_in_schema=False)
@@ -51,12 +108,59 @@ def salud():
     """¿Está viva la API y responde la base?"""
     with pool.connection() as conn:
         conn.execute("SELECT 1")
-    return {"ok": True, "servicio": "api"}
+    return {"ok": True, "servicio": "api", "proveedor_identidad": identidad.nombre}
+
+
+class ActuarComo(BaseModel):
+    colaborador_id: UUID
+
+
+@app.get("/auth/dev/colaboradores", tags=["identidad"])
+def colaboradores_para_actuar():
+    """
+    A quién se puede representar en desarrollo. Con Entra devuelve vacío: ahí uno se
+    autentica de verdad. **No hay contraseñas en el sistema** (S-18).
+    """
+    with pool.connection() as conn:
+        return identidad.colaboradores_disponibles(conn)
+
+
+@app.post("/auth/dev/actuar-como", tags=["identidad"])
+def actuar_como(cuerpo: ActuarComo):
+    """Emite la sesión. Pega el token en *Authorize* como `Bearer <token>`."""
+    with pool.connection() as conn:
+        try:
+            token = identidad.autenticar(conn, colaborador_id=cuerpo.colaborador_id)
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+        except NotImplementedError as e:
+            raise HTTPException(501, str(e))
+    return {"token": token, "tipo": "Bearer"}
+
+
+@app.get("/auth/yo", tags=["identidad"])
+def quien_soy(yo: UUID = Depends(colaborador_actual)):
+    """La identidad de la sesión actual, con su estado derivado."""
+    datos = filas(
+        """SELECT c.id, c.nombre, c.email, ca.nombre AS cargo, ca.codigo AS cargo_codigo,
+                  u.nombre AS unidad, ec.xp_acreditable, ec.xp_total, ec.escalon, ec.insignias,
+                  (pi.colaborador_id IS NOT NULL) AS ve_panel_institucional
+             FROM colaborador c
+             JOIN cargo ca ON ca.id = c.cargo_id
+             LEFT JOIN unidad u ON u.id = c.unidad_id
+             JOIN estado_colaborador ec ON ec.colaborador_id = c.id
+             LEFT JOIN permiso_institucional pi ON pi.colaborador_id = c.id
+            WHERE c.id = %s""",
+        (yo,),
+    )
+    if not datos:
+        raise HTTPException(404, "colaborador inexistente")
+    return datos[0]
 
 
 # ============================================================ catálogo real
 @app.get("/catalogo/dimensiones", tags=["catálogo"])
-def dimensiones():
+def dimensiones(yo: UUID = Depends(colaborador_actual)):
     """Las 5 dimensiones evaluativas de la CNA. Son el esqueleto del contenido."""
     return filas(
         "SELECT codigo, nombre_oficial, obligatoria, orden FROM dimension ORDER BY orden"
@@ -64,7 +168,7 @@ def dimensiones():
 
 
 @app.get("/catalogo/hitos", tags=["catálogo"])
-def hitos():
+def hitos(yo: UUID = Depends(colaborador_actual)):
     """Los 13 hitos de la ruta 2026–2027. H13 no tiene fecha: la fuente dice «por definir»."""
     return filas(
         """SELECT codigo, ruta, anio, periodo_texto, titulo, fecha_inicio, fecha_fin
@@ -73,7 +177,7 @@ def hitos():
 
 
 @app.get("/catalogo/cargos", tags=["catálogo"])
-def cargos():
+def cargos(yo: UUID = Depends(colaborador_actual)):
     """Los 6 cargos del slice, con cuántas personas los ocupan."""
     return filas(
         """SELECT c.codigo, c.nombre, c.descripcion, count(col.id) AS colaboradores
@@ -83,14 +187,15 @@ def cargos():
 
 
 @app.get("/catalogo/matriz", tags=["catálogo"])
-def matriz():
+def matriz(yo: UUID = Depends(colaborador_actual)):
     """
     **La matriz Cargo × Dimensión** (ADR-003) — el corazón del modelo.
 
-    30 filas: 6 cargos × 5 dimensiones. Cada cargo toca las 5 con nivel ≥ 1 y se
-    diferencia por dónde se le exige profundidad. Gracias al anidamiento de los
-    estándares CNA (el nivel 3 incluye al 2 y el 2 al 1), esto se sirve con solo
-    **15 unidades de contenido**, no 30.
+    30 filas: 6 cargos × 5 dimensiones. Gracias al anidamiento de los estándares CNA
+    esto se sirve con solo **15 unidades de contenido**, no 30.
+
+    Es catálogo, no contenido: dice qué nivel se le exige a cada cargo, nunca el
+    material de esos bloques. El aislamiento de I-10 opera sobre el contenido.
     """
     return filas(
         """SELECT ca.codigo AS cargo, ca.nombre AS cargo_nombre,
@@ -105,8 +210,8 @@ def matriz():
 
 
 @app.get("/catalogo/contenido", tags=["catálogo"])
-def contenido():
-    """Las 15 unidades de contenido (dimensión × nivel) y cuántos cargos las comparten."""
+def contenido(yo: UUID = Depends(con_permiso_institucional)):
+    """Inventario de las 15 unidades. Requiere permiso institucional: es vista de gestión."""
     return filas(
         """SELECT d.codigo AS dimension, bc.nivel_estandar, bc.titulo,
                   bc.es_contenido_prueba, bc.estado,
@@ -123,7 +228,7 @@ def contenido():
 
 
 @app.get("/catalogo/comites", tags=["catálogo"])
-def comites():
+def comites(yo: UUID = Depends(colaborador_actual)):
     """La gobernanza de la fuente. De acá salen los permisos institucionales (S-35)."""
     return filas(
         """SELECT co.tipo, co.nombre, d.codigo AS dimension, u.nombre AS unidad,
@@ -135,30 +240,12 @@ def comites():
     )
 
 
-# ======================================================== personas y rutas
-@app.get("/colaboradores", tags=["colaboradores"])
-def colaboradores():
-    """Los 3 del slice, con su estado derivado y si tienen permiso institucional."""
-    return filas(
-        """SELECT c.id, c.email, c.nombre, ca.nombre AS cargo, u.nombre AS unidad,
-                  ec.xp_acreditable, ec.xp_total, ec.escalon, ec.insignias,
-                  (pi.colaborador_id IS NOT NULL) AS ve_panel_institucional
-             FROM colaborador c
-             JOIN cargo ca ON ca.id = c.cargo_id
-             LEFT JOIN unidad u ON u.id = c.unidad_id
-             JOIN estado_colaborador ec ON ec.colaborador_id = c.id
-             LEFT JOIN permiso_institucional pi ON pi.colaborador_id = c.id
-            ORDER BY c.nombre"""
-    )
-
-
-@app.get("/colaboradores/{colaborador_id}/ruta", tags=["colaboradores"])
-def ruta(colaborador_id: UUID):
+# ============================================================= lo mío
+@app.get("/mi/ruta", tags=["mi ruta"])
+def mi_ruta(yo: UUID = Depends(colaborador_actual)):
     """
-    La ruta de una persona: 5 bloques, uno por dimensión, cada uno al nivel que le
-    exige su cargo y anclado a un hito real del proceso.
-
-    Compara dos cargos distintos acá y se ve la personalización de ADR-003.
+    Mis 5 bloques, uno por dimensión, cada uno al nivel que me exige mi cargo y
+    anclado a un hito real del proceso.
     """
     datos = filas(
         """SELECT br.id AS bloque_ruta_id, br.orden, br.estado,
@@ -166,7 +253,9 @@ def ruta(colaborador_id: UUID):
                   bc.nivel_estandar, bc.titulo, bc.es_contenido_prueba,
                   h.codigo AS hito, h.periodo_texto, h.titulo AS hito_titulo,
                   dm.nombre AS medalla, dm.xp AS medalla_xp,
-                  (SELECT count(*) FROM modulo m WHERE m.bloque_contenido_id = bc.id) AS modulos
+                  (SELECT count(*) FROM modulo m WHERE m.bloque_contenido_id = bc.id) AS modulos,
+                  (SELECT count(*) FROM insignia i
+                     WHERE i.colaborador_id = %s AND i.definicion_medalla_id = dm.id) AS obtenida
              FROM bloque_ruta br
              JOIN ruta r ON r.id = br.ruta_id
              JOIN bloque_contenido bc ON bc.id = br.bloque_contenido_id
@@ -175,22 +264,22 @@ def ruta(colaborador_id: UUID):
              LEFT JOIN definicion_medalla dm ON dm.bloque_contenido_id = bc.id
             WHERE r.colaborador_id = %s
             ORDER BY br.orden""",
-        (colaborador_id,),
+        (yo, yo),
     )
     if not datos:
-        raise HTTPException(404, "ese colaborador no tiene ruta")
+        raise HTTPException(404, "todavía no tienes ruta generada")
     return datos
 
 
-@app.get("/colaboradores/{colaborador_id}/estado", tags=["colaboradores"])
-def estado(colaborador_id: UUID):
+@app.get("/mi/estado", tags=["mi ruta"])
+def mi_estado(yo: UUID = Depends(colaborador_actual)):
     """
-    Estado DERIVADO. No hay columnas `xp` ni `nivel` que consultar: todo sale de
-    los eventos (ADR-005 §3). El escalón usa solo XP acreditable; el ranking, el total.
+    Estado DERIVADO. No hay columnas `xp` ni `nivel` que consultar: todo sale de los
+    eventos (ADR-005 §3). El escalón usa solo XP acreditable; el ranking, el total.
     """
     with pool.connection() as conn:
         try:
-            e = leer_estado(conn, colaborador_id)
+            e = leer_estado(conn, yo)
         except LookupError:
             raise HTTPException(404, "colaborador inexistente")
     return {
@@ -201,8 +290,8 @@ def estado(colaborador_id: UUID):
     }
 
 
-@app.get("/colaboradores/{colaborador_id}/insignias", tags=["colaboradores"])
-def insignias(colaborador_id: UUID):
+@app.get("/mi/insignias", tags=["mi ruta"])
+def mis_insignias(yo: UUID = Depends(colaborador_actual)):
     """Cada insignia con el intento aprobado que la respalda. Auditable por diseño."""
     return filas(
         """SELECT dm.nombre AS medalla, dm.tipo, dm.xp, i.otorgada_en,
@@ -213,36 +302,46 @@ def insignias(colaborador_id: UUID):
              JOIN intento_evaluacion ie ON ie.id = i.intento_evaluacion_id
             WHERE i.colaborador_id = %s
             ORDER BY i.otorgada_en""",
-        (colaborador_id,),
+        (yo,),
     )
 
 
-@app.get("/ranking", tags=["colaboradores"])
-def ranking():
-    """Ranking por XP total, con el desempate de S-15. El escalón usa el acreditable."""
+@app.get("/ranking", tags=["mi ruta"])
+def ranking(yo: UUID = Depends(colaborador_actual)):
+    """
+    Ranking por XP total, con el desempate de S-15.
+
+    Es agregado: nombre, unidad, XP y **conteo** de insignias. Nunca el nombre de las
+    insignias de otro cargo, que filtraría su contenido (S-16).
+    """
     return filas("SELECT * FROM ranking ORDER BY posicion")
 
 
-# ============================================================== evaluación
-class AbrirIntento(BaseModel):
-    colaborador_id: UUID
-    bloque_ruta_id: UUID
+@app.get("/colaboradores", tags=["gestión"])
+def colaboradores(yo: UUID = Depends(con_permiso_institucional)):
+    """Nómina con avance. Requiere permiso institucional (E-03)."""
+    return filas(
+        """SELECT c.id, c.email, c.nombre, ca.nombre AS cargo, u.nombre AS unidad,
+                  ec.xp_acreditable, ec.xp_total, ec.escalon, ec.insignias
+             FROM colaborador c
+             JOIN cargo ca ON ca.id = c.cargo_id
+             LEFT JOIN unidad u ON u.id = c.unidad_id
+             JOIN estado_colaborador ec ON ec.colaborador_id = c.id
+            ORDER BY c.nombre"""
+    )
 
 
-class Respuesta(BaseModel):
-    item_id: UUID
-    indice_elegido: int = Field(ge=0, le=3)
-
-
+# =============================================================== contenido
 @app.get("/bloques-ruta/{bloque_ruta_id}/modulos", tags=["contenido"])
-def modulos(bloque_ruta_id: UUID):
+def modulos(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
     """
     El microlearning del bloque, con su quiz formativo aparte.
 
     `nivel_estandar_origen` muestra el anidamiento: en un bloque de nivel 3 conviven
     módulos de origen 1, 2 y 3, porque el estándar superior incluye a los anteriores.
     """
-    datos = filas(
+    _bloque_propio(bloque_ruta_id, yo)
+    return filas(
         """SELECT m.id, m.orden, m.titulo, m.cuerpo, m.duracion_min, m.xp,
                   m.nivel_estandar_origen, bc.es_contenido_prueba
              FROM modulo m
@@ -251,14 +350,18 @@ def modulos(bloque_ruta_id: UUID):
             WHERE br.id = %s ORDER BY m.orden""",
         (bloque_ruta_id,),
     )
-    if not datos:
-        raise HTTPException(404, "bloque de ruta inexistente o sin módulos")
-    return datos
+
+
+# ============================================================== evaluación
+class Respuesta(BaseModel):
+    item_id: UUID
+    indice_elegido: int = Field(ge=0, le=3)
 
 
 @app.get("/bloques-ruta/{bloque_ruta_id}/evaluacion", tags=["evaluación"])
-def ver_evaluacion(bloque_ruta_id: UUID):
+def ver_evaluacion(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
     """Los ítems del banco. **Sin `indice_correcta`**: la respuesta no viaja al cliente."""
+    _bloque_propio(bloque_ruta_id, yo)
     return filas(
         """SELECT i.id AS item_id, i.enunciado, i.alternativas
              FROM item_evaluacion i
@@ -270,26 +373,19 @@ def ver_evaluacion(bloque_ruta_id: UUID):
 
 
 @app.get("/bloques-ruta/{bloque_ruta_id}/clave-de-respuestas", tags=["evaluación"])
-def clave_de_respuestas(bloque_ruta_id: UUID):
+def clave_de_respuestas(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
     """
     **Solo para verificar el slice desde `/docs`.** Devuelve la alternativa correcta.
 
-    Doble candado: exige `MODO_DEV=true` **y** que el bloque esté marcado
-    `es_contenido_prueba`. Sobre contenido real de acreditación responde 403 aunque
-    el modo dev esté encendido. Se elimina antes de producción (tarea D8).
+    Triple candado: el bloque tiene que estar en tu ruta, `MODO_DEV=true`, y el bloque
+    marcado `es_contenido_prueba`. Sobre contenido real responde 403 aunque el modo dev
+    esté encendido. Se elimina antes de producción (tarea D8).
     """
+    bloque = _bloque_propio(bloque_ruta_id, yo)
+
     if os.environ.get("MODO_DEV", "").lower() != "true":
         raise HTTPException(403, "solo disponible con MODO_DEV=true")
-
-    es_prueba = filas(
-        """SELECT bc.es_contenido_prueba
-             FROM bloque_ruta br JOIN bloque_contenido bc ON bc.id = br.bloque_contenido_id
-            WHERE br.id = %s""",
-        (bloque_ruta_id,),
-    )
-    if not es_prueba:
-        raise HTTPException(404, "bloque de ruta inexistente")
-    if not es_prueba[0]["es_contenido_prueba"]:
+    if not bloque["es_contenido_prueba"]:
         raise HTTPException(403, "este bloque tiene contenido real: la clave no se revela")
 
     return filas(
@@ -302,33 +398,43 @@ def clave_de_respuestas(bloque_ruta_id: UUID):
     )
 
 
-@app.post("/intentos", tags=["evaluación"])
-def crear_intento(cuerpo: AbrirIntento):
+@app.post("/bloques-ruta/{bloque_ruta_id}/intentos", tags=["evaluación"])
+def crear_intento(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
     """Abre un intento y baraja los ítems. Si ya hay uno abierto y vigente, lo retoma (S-14)."""
+    _bloque_propio(bloque_ruta_id, yo)
     with pool.connection() as conn:
         try:
-            intento_id = abrir_intento(
-                conn, colaborador_id=cuerpo.colaborador_id, bloque_ruta_id=cuerpo.bloque_ruta_id
-            )
+            intento_id = abrir_intento(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id)
         except SinReintentos as e:
             raise HTTPException(409, str(e))
         except LookupError as e:
             raise HTTPException(404, str(e))
-        servidos = conn.execute(
+        datos = conn.execute(
             "SELECT items_servidos, expira_en, numero_intento FROM intento_evaluacion WHERE id = %s",
             (intento_id,),
         ).fetchone()
     return {
         "intento_id": intento_id,
-        "numero_intento": servidos[2],
-        "items_servidos": servidos[0],
-        "expira_en": servidos[1],
+        "numero_intento": datos[2],
+        "items_servidos": datos[0],
+        "expira_en": datos[1],
     }
 
 
+def _intento_propio(intento_id: UUID, yo: UUID) -> None:
+    mio = filas(
+        "SELECT 1 FROM intento_evaluacion WHERE id = %s AND colaborador_id = %s",
+        (intento_id, yo),
+    )
+    if not mio:
+        raise HTTPException(404, "ese intento no es tuyo")
+
+
 @app.post("/intentos/{intento_id}/respuestas", tags=["evaluación"])
-def guardar_respuesta(intento_id: UUID, cuerpo: Respuesta):
+def guardar_respuesta(intento_id: UUID, cuerpo: Respuesta,
+                      yo: UUID = Depends(colaborador_actual)):
     """Autosave por respuesta. Una caída al enviar no pierde nada (S-14)."""
+    _intento_propio(intento_id, yo)
     with pool.connection() as conn:
         try:
             responder(conn, intento_id=intento_id, item_id=cuerpo.item_id,
@@ -341,14 +447,15 @@ def guardar_respuesta(intento_id: UUID, cuerpo: Respuesta):
 
 
 @app.post("/intentos/{intento_id}/cerrar", tags=["evaluación"])
-def cerrar(intento_id: UUID):
+def cerrar(intento_id: UUID, yo: UUID = Depends(colaborador_actual)):
     """
     Corrige, cierra y —solo si corresponde— otorga.
 
-    Es la **única** ruta de código que puede producir una insignia, y aun así la
-    base impone el invariante por su cuenta. Idempotente: apretar dos veces
-    devuelve lo mismo y no duplica XP (S-13).
+    Es la **única** ruta de código que puede producir una insignia, y aun así la base
+    impone el invariante por su cuenta. Idempotente: apretar dos veces devuelve lo
+    mismo y no duplica XP (S-13).
     """
+    _intento_propio(intento_id, yo)
     with pool.connection() as conn:
         try:
             r = cerrar_intento(conn, intento_id=intento_id)

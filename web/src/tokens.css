@@ -1,0 +1,43 @@
+/*
+ * Sistema de diseño — docs/design-system.md
+ *
+ * Tokens tomados LITERALMENTE de la cáscara (referencia-demo/somos-calidad.html).
+ * La identidad ya está decidida y no se rediseña: esto la congela como contrato.
+ * Ningún componente define un color fuera de acá.
+ */
+
+/* Autohospedadas (S-26): un portal institucional interno no debe depender de un CDN. */
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/700.css";
+
+:root {
+  --tinta: #2b0b1e;
+  --tinta-2: #3d1229;
+  --tinta-3: #511a37;
+  --carmin: #e11d3c;
+  --carmin-soft: #ff6b82;
+  --oro: #f4b740;
+  --menta: #2dd4a7;
+  --menta-deep: #0f9e7d;
+  --marfil: #fbf7f5;
+  --blanco: #ffffff;
+  --niebla: #8a7a83;
+  --linea: #ece2e6;
+  --linea-osc: rgba(255, 255, 255, 0.1);
+
+  --sombra: 0 1px 2px rgba(43, 11, 30, 0.06), 0 8px 28px rgba(43, 11, 30, 0.08);
+  --sombra-alta: 0 20px 60px rgba(43, 11, 30, 0.22);
+
+  --r: 16px;
+  --r-sm: 10px;
+  --r-lg: 24px;
+
+  --disp: "Bricolage Grotesque Variable", "Bricolage Grotesque", system-ui, sans-serif;
+  --body: "Inter", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
