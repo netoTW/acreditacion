@@ -121,6 +121,36 @@ respaldo auditable, y el doble envío no duplica nada.
 - El healthcheck del realtime daba "connection refused" con el servicio sano: en Alpine
   `localhost` resuelve primero a `::1` y el servidor escucha en IPv4. Corregido a `127.0.0.1`.
 
+### C5 — Generador de Contenido: las rutas tienen contenido formativo real
+
+**15 unidades generadas, 45 módulos, 360 ítems de banco.** Todo pasa el Validador antes de
+entrar; si algo se rechaza, el sistema **no levanta**. Mejor no arrancar que arrancar con un
+banco que se puede aprobar sin saber la materia.
+
+El conocimiento se escribe **una vez por dimensión** —50 conceptos, 10 por dimensión, con
+`nivel_minimo`— y el anidamiento de los estándares CNA produce los tres niveles. De cada
+concepto salen tres ítems: definición, escenario aplicado y emparejamiento. El de
+emparejamiento se compone solo cruzando definiciones del mismo bloque, así que da variedad
+real sin inventar contenido.
+
+Todo marcado `es_contenido_prueba: true`, con el aviso dentro del propio microlearning. La
+estructura sale de la ruta de AIEP; el desarrollo didáctico lo reemplaza el experto CNA sin
+tocar el modelo — ese es el swap de `fuente_de_contenido`.
+
+**Dos hallazgos:**
+
+- El detector de relleno del validador daba **falsos positivos en español**: buscaba "todo" y
+  "pendiente" como subcadena y los encontraba dentro de *método* e *independiente*. Se separó
+  en subcadenas inequívocas y centinelas exactos, más un mínimo de cuatro palabras por
+  explicación. Quedó test de regresión.
+- El Validador cargaba el schema contando niveles de directorio (`parents[3]`), lo que
+  funcionaba en el repo y apuntaba a la raíz del sistema de archivos dentro del contenedor.
+  Ahora lo busca hacia arriba, y el contexto de build de la API pasó a la raíz para que
+  `docs/contenido/` siga siendo una sola fuente de verdad.
+
+Verificado que la API sirve **exactamente** lo que produce el generador: mismos módulos,
+mismo banco. Suite completa: **63 en verde, 1 declarada pendiente**.
+
 ### Pendiente inmediato — son del director, no míos
 - **A4** túnel + 2 dispositivos reales fuera de localhost. Hasta que pase, ningún plazo es firme.
 - **A6** reconexión por refresh · **A7** los 3 dispositivos a la vez.

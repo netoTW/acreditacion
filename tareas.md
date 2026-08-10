@@ -30,8 +30,8 @@
 - [x] C2 Modelo + migraciones + seed (5 dimensiones, 13 hitos, 6 cargos, matriz 30 filas, comités, 3 colaboradores)
 - [x] C3 Motor de gamificación + CANARIO EN CI (verde antes de que exista la primera medalla del sistema)
 - [ ] C4 Adapter de identidad + login dev "actuar como"
-- [ ] C5 Generador de contenido: 15 unidades (5 dimensiones × 3 niveles) validadas
-- [ ] C6 Integrador: contenido validado → rutas por cargo en base de datos
+- [x] C5 Generador de contenido: 15 unidades validadas · 45 módulos · 360 ítems · integrado en el arranque
+- [x] C6 Integrador: contenido validado → rutas por cargo (rechaza lo inválido; no pisa contenido con intentos)
 
 ## Track D — Modo fábrica (worktrees en paralelo, con cimientos verdes)
 - [ ] D1 UI de ruta + bloque + módulo (la pantalla de módulo no existe en la cáscara)

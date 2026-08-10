@@ -1,4 +1,4 @@
-# Verificación en tu máquina — C1 + C2
+# Verificación en tu máquina — C1 · C2 · C5
 
 ```bash
 cd ~/Documents/acreditacion
@@ -16,8 +16,8 @@ En el log de arranque debes ver exactamente esto:
 ```
   migrando · 001_integridad.sql
   migrando · 002_catalogo.sql
-  seed · 5 dimensiones · 13 hitos · 6 cargos · 30 filas de matriz ·
-         15 unidades de contenido · 3 colaboradores
+  seed · 5 dimensiones · 13 hitos · 6 cargos · 30 filas de matriz · 3 colaboradores
+  contenido generado y validado · 15 unidades · 45 módulos · 360 ítems de banco
 ```
 
 Y los tres servicios sanos: `docker compose ps` → `api`, `db`, `realtime` en **healthy**.
@@ -58,7 +58,7 @@ puntual).
 ### 3. Que el contenido se genera una vez y se comparte
 
 **http://localhost:8010/catalogo/contenido** → **15 unidades** (5 dimensiones × 3 niveles),
-no 30. La columna `cargos_que_la_usan` suma **30**: los 30 pares cargo×dimensión se sirven
+no 30, con **45 módulos y 360 ítems** generados y validados. La columna `cargos_que_la_usan` suma **30**: los 30 pares cargo×dimensión se sirven
 con 15 unidades. Ahí está el ahorro de ADR-003.
 
 Verás también que los módulos escalan con el nivel: N1 → 2, N2 → 3, N3 → 4 (S-32).
@@ -135,8 +135,9 @@ Borra la base y vuelve a sembrar. Útil para repetir el canario desde limpio.
 ## Lo que todavía NO está
 
 - **Frontend.** No hay `web` en el compose: la UI es D1–D7. Por ahora la interfaz es `/docs`.
-- **Contenido real.** Las 15 unidades son cáscaras marcadas `es_contenido_prueba: true`;
-  el Generador las llena en C5.
+- **Contenido oficial.** Las 15 unidades ya tienen microlearning y banco de ítems reales,
+  pero marcados `es_contenido_prueba: true`: sirven para validar la máquina. El material CNA
+  lo aporta AIEP y entra por el mismo generador cambiando `fuente_de_contenido`.
 - **Login.** Los endpoints no piden identidad todavía: el adapter va en C4. Por eso puedes
   consultar cualquier colaborador — el aislamiento por cargo (I-10) se implementa y se
   prueba en la Tanda 4.

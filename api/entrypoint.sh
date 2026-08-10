@@ -37,14 +37,17 @@ import os, psycopg, sys
 sys.path.insert(0, 'src')
 from seed.sembrar import sembrar
 with psycopg.connect(os.environ['DATABASE_URL'], autocommit=True) as conn:
-    ids = sembrar(conn)
+    sembrar(conn)
     n = lambda q: conn.execute(q).fetchone()[0]
     print(f'  seed · {n(\"SELECT count(*) FROM dimension\")} dimensiones · '
           f'{n(\"SELECT count(*) FROM hito\")} hitos · '
           f'{n(\"SELECT count(*) FROM cargo\")} cargos · '
           f'{n(\"SELECT count(*) FROM exigencia_cargo_dimension\")} filas de matriz · '
-          f'{n(\"SELECT count(*) FROM bloque_contenido\")} unidades de contenido · '
-          f'{len(ids)} colaboradores', flush=True)
+          f'{n(\"SELECT count(*) FROM colaborador\")} colaboradores', flush=True)
+    print(f'  contenido generado y validado · '
+          f'{n(\"SELECT count(*) FROM bloque_contenido\")} unidades · '
+          f'{n(\"SELECT count(*) FROM modulo\")} módulos · '
+          f'{n(\"SELECT count(*) FROM item_evaluacion\")} ítems de banco', flush=True)
 "
 
 echo ""

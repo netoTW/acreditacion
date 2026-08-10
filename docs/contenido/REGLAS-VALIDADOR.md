@@ -70,7 +70,10 @@ Todo lo que produce el Generador pasa por acá antes de integrarse.
 
 **Anti-degeneración** — atrapa contenido que valida pero no sirve:
 
-14. Ningún par de ítems del banco tiene similitud de enunciado mayor a 0,9.
+14. Ningún par de ítems del banco tiene similitud mayor a 0,9, medida sobre
+    **enunciado + alternativa correcta**, no sobre el enunciado solo. Dos ítems que
+    comparten plantilla pero preguntan por conceptos distintos son legítimamente
+    distintos; castigarlos por el enunciado escondería los duplicados de verdad.
 15. La alternativa correcta no es sistemáticamente la más larga: se compara el largo medio
     de correctas contra incorrectas en todo el banco y se exige que no haya sesgo marcado.
 16. La posición de la correcta está razonablemente repartida entre las 4 posiciones del

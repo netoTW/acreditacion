@@ -6,12 +6,11 @@ que si el seed se rompe, el sistema no levanta — y eso es lo correcto (ADR-001
 """
 from __future__ import annotations
 
-import hashlib
-import json
+from generador import generar_todo, integrar
 
 from .datos import (
     CARGOS, COLABORADORES, COMITES_FIJOS, DIMENSIONES, HITOS, HITOS_POR_POSICION,
-    MATRIZ, MODULOS_POR_NIVEL, UNIDADES, XP_MEDALLA, XP_MODULO,
+    MATRIZ, UNIDADES,
 )
 
 
@@ -91,64 +90,17 @@ def sembrar(conn) -> dict:
         ).fetchone()[0]
 
     # ------------------------------------------------------------- contenido
-    # 15 unidades: 5 dimensiones × 3 niveles (ADR-003). No 30. Los cargos que
-    # exigen el mismo par comparten exactamente este contenido.
-    bloque = {}
-    for codigo_dim, nombre_dim, _ob, _or in DIMENSIONES:
-        for nivel in (1, 2, 3):
-            titulo = f"{nombre_dim} · Nivel {nivel}"
-            bc = conn.execute(
-                """INSERT INTO bloque_contenido (dimension_id, nivel_estandar, titulo, estado)
-                   VALUES (%s,%s,%s,'validado')
-                   ON CONFLICT (dimension_id, nivel_estandar)
-                   DO UPDATE SET titulo = EXCLUDED.titulo RETURNING id""",
-                (dim[codigo_dim], nivel, titulo),
-            ).fetchone()[0]
-            bloque[(codigo_dim, nivel)] = bc
-
-            # Módulos: N1→2, N2→3, N3→4, con su tramo de origen anidado (S-32).
-            for orden in range(1, MODULOS_POR_NIVEL[nivel] + 1):
-                origen = min(orden, nivel)
-                conn.execute(
-                    """INSERT INTO modulo (bloque_contenido_id, orden, titulo, xp,
-                                           nivel_estandar_origen)
-                       VALUES (%s,%s,%s,%s,%s)
-                       ON CONFLICT (bloque_contenido_id, orden) DO NOTHING""",
-                    (bc, orden, f"{nombre_dim} · módulo {orden}", XP_MODULO[nivel], origen),
-                )
-
-            ev = conn.execute(
-                """INSERT INTO evaluacion (bloque_contenido_id) VALUES (%s)
-                   ON CONFLICT (bloque_contenido_id) DO UPDATE
-                     SET umbral_aprobacion = EXCLUDED.umbral_aprobacion
-                   RETURNING id""",
-                (bc,),
-            ).fetchone()[0]
-
-            # Banco de prueba. El Generador (C5) lo reemplaza por contenido real;
-            # el mínimo son 3× los ítems por intento para que barajar sirva (S-06).
-            for n in range(15):
-                enunciado = f"[PRUEBA] {nombre_dim} · nivel {nivel} · pregunta {n + 1}"
-                conn.execute(
-                    """INSERT INTO item_evaluacion (evaluacion_id, enunciado, alternativas,
-                                                    indice_correcta, explicaciones, hash_enunciado)
-                       VALUES (%s,%s,%s::jsonb,%s,%s::jsonb,%s)
-                       ON CONFLICT (evaluacion_id, hash_enunciado) DO NOTHING""",
-                    (
-                        ev, enunciado,
-                        json.dumps([f"Alternativa {a}" for a in "ABCD"]),
-                        n % 4,
-                        json.dumps([f"Explicación de la alternativa {a}" for a in "ABCD"]),
-                        hashlib.sha1(enunciado.encode()).hexdigest(),
-                    ),
-                )
-
-            conn.execute(
-                """INSERT INTO definicion_medalla (bloque_contenido_id, tipo, nombre, xp)
-                   SELECT %s,'silver',%s,%s
-                    WHERE NOT EXISTS (SELECT 1 FROM definicion_medalla WHERE bloque_contenido_id = %s)""",
-                (bc, f"{nombre_dim} · N{nivel}", XP_MEDALLA[nivel], bc),
-            )
+    # Las 15 unidades (5 dimensiones × 3 niveles, ADR-003) las produce el Generador
+    # y solo entran si pasan el Validador. Los cargos que exigen el mismo par
+    # comparten exactamente este contenido.
+    resumen = integrar(conn, generar_todo())
+    if resumen["rechazados"]:
+        detalle = "; ".join(
+            f"{r['bloque']}: {r['errores'][0]}" for r in resumen["rechazados"]
+        )
+        # Si el contenido no valida, el sistema no levanta. Es lo correcto: mejor no
+        # arrancar que arrancar con un banco que se puede aprobar sin saber la materia.
+        raise RuntimeError(f"contenido rechazado por el validador → {detalle}")
 
     # ----------------------------------------------------------- LA MATRIZ
     for codigo_cargo, exigencias in MATRIZ.items():

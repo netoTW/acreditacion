@@ -22,7 +22,11 @@ services:
       retries: 20
 
   api:
-    build: ./api
+    build:
+      # Contexto en la raíz: la imagen necesita docs/contenido/, que es el
+      # contrato del Generador y tiene una sola fuente de verdad.
+      context: .
+      dockerfile: api/Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       PUERTO_API: ${PUERTO_API:-8010}          # solo para que el log muestre la URL correcta

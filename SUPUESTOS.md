@@ -29,6 +29,7 @@
 | S-06 | Sin evaluación adaptativa en el slice: banco fijo con ítems barajados por intento. La palabra sale de la UI. | VIGENTE |
 | S-27 | `es_contenido_prueba: true` se muestra **visible en la UI** de todo bloque generado. | VIGENTE |
 | S-32 | **Módulos por bloque según nivel:** N1 → 2, N2 → 3, N3 → 4. Conserva el default de 2 de CLAUDE.md §5 en el nivel base. Configurable en `modulos_por_nivel`. | VIGENTE |
+| S-45 | **Base de conocimiento:** 10 conceptos por dimensión con `nivel_minimo`, de modo que N1 use 6, N2 use 8 y N3 los 10. De cada concepto salen 3 ítems, así los bancos quedan en 18 / 24 / 30 — por sobre el mínimo de 3× los ítems por intento. | VIGENTE |
 | S-33 | La fuente declara **16 criterios** pero no los enumera ni indica su reparto entre dimensiones. `Criterio` se modela como entidad de primera clase y en el slice se genera como contenido de prueba. La lista oficial la inyecta el experto CNA de AIEP sin tocar el modelo. | VIGENTE |
 
 ## XP, niveles y medallas

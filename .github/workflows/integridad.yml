@@ -59,6 +59,10 @@ jobs:
         working-directory: api
         run: python -m pytest pruebas/test_integridad.py -v
 
+      - name: Generador y Validador de contenido
+        working-directory: api
+        run: python -m pytest pruebas/test_generador.py -v
+
   dientes:
     name: Los candados están verificados (mutación)
     runs-on: ubuntu-latest

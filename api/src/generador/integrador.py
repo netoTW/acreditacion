@@ -1,0 +1,140 @@
+"""
+Integrador: contenido validado → base de datos.
+
+Dos reglas que no se negocian:
+
+1. **Lo que no pasa el validador no entra.** Ni siquiera parcialmente
+   (CLAUDE.md §9.3).
+2. **No se reemplaza contenido que ya tiene intentos rindiéndose encima.** Cambiar
+   los ítems bajo un intento en curso rompería la trazabilidad entre la insignia y
+   la evaluación que la respalda, que es justo lo que ADR-005 protege.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+
+from .validador import normalizar, validar
+
+
+def _hash(enunciado: str) -> str:
+    return hashlib.sha1(normalizar(enunciado).encode("utf-8")).hexdigest()
+
+
+def integrar(conn, bloques: list[dict]) -> dict:
+    """Integra los bloques válidos. Devuelve un resumen de lo hecho y lo omitido."""
+    resumen = {"integrados": [], "rechazados": [], "omitidos": [], "items": 0, "modulos": 0}
+
+    for bloque in bloques:
+        r = validar(bloque)
+        etiqueta = f"{bloque.get('dimension')} N{bloque.get('nivel_estandar')}"
+
+        if not r.valido:
+            resumen["rechazados"].append({"bloque": etiqueta, "errores": r.errores})
+            continue
+
+        dimension_id = conn.execute(
+            "SELECT id FROM dimension WHERE codigo = %s", (bloque["dimension"],)
+        ).fetchone()
+        if dimension_id is None:
+            resumen["rechazados"].append(
+                {"bloque": etiqueta, "errores": ["la dimensión no existe en el catálogo"]}
+            )
+            continue
+        dimension_id = dimension_id[0]
+
+        bc_id = conn.execute(
+            """INSERT INTO bloque_contenido
+                   (dimension_id, nivel_estandar, titulo, es_contenido_prueba, estado)
+               VALUES (%s, %s, %s, %s, 'validado')
+               ON CONFLICT (dimension_id, nivel_estandar)
+               DO UPDATE SET titulo = EXCLUDED.titulo, estado = 'validado'
+               RETURNING id""",
+            (dimension_id, bloque["nivel_estandar"], bloque["titulo"],
+             bloque["es_contenido_prueba"]),
+        ).fetchone()[0]
+
+        # Regla 2: si hay intentos apoyados en este bloque, no se toca el contenido.
+        con_intentos = conn.execute(
+            """SELECT count(*) FROM intento_evaluacion ie
+                 JOIN bloque_ruta br ON br.id = ie.bloque_ruta_id
+                WHERE br.bloque_contenido_id = %s""",
+            (bc_id,),
+        ).fetchone()[0]
+        if con_intentos:
+            resumen["omitidos"].append(
+                {"bloque": etiqueta,
+                 "razon": f"tiene {con_intentos} intento(s): no se reemplaza contenido "
+                          "bajo evaluaciones ya rendidas"}
+            )
+            continue
+
+        n_mod, n_items = _reemplazar_contenido(conn, bc_id, bloque)
+        resumen["integrados"].append(etiqueta)
+        resumen["modulos"] += n_mod
+        resumen["items"] += n_items
+
+    return resumen
+
+
+def _reemplazar_contenido(conn, bc_id, bloque: dict) -> tuple[int, int]:
+    # Sin intentos de por medio, el borrado es seguro.
+    conn.execute(
+        """DELETE FROM item_evaluacion
+            WHERE evaluacion_id IN (SELECT id FROM evaluacion WHERE bloque_contenido_id = %s)""",
+        (bc_id,),
+    )
+    conn.execute("DELETE FROM modulo WHERE bloque_contenido_id = %s", (bc_id,))
+
+    for m in bloque["modulos"]:
+        conn.execute(
+            """INSERT INTO modulo (bloque_contenido_id, orden, titulo, cuerpo,
+                                   duracion_min, xp, nivel_estandar_origen)
+               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+            (bc_id, m["orden"], m["titulo"], m["cuerpo"], m["duracion_min"],
+             m["xp"], m["nivel_estandar_origen"]),
+        )
+
+    ev = bloque["evaluacion"]
+    ev_id = conn.execute(
+        """INSERT INTO evaluacion (bloque_contenido_id, umbral_aprobacion,
+                                   n_items_por_intento, max_reintentos, minutos_expiracion)
+           VALUES (%s,%s,%s,%s,%s)
+           ON CONFLICT (bloque_contenido_id) DO UPDATE
+             SET umbral_aprobacion   = EXCLUDED.umbral_aprobacion,
+                 n_items_por_intento = EXCLUDED.n_items_por_intento,
+                 max_reintentos      = EXCLUDED.max_reintentos,
+                 minutos_expiracion  = EXCLUDED.minutos_expiracion
+           RETURNING id""",
+        (bc_id, ev["umbral_aprobacion"], ev["n_items_por_intento"],
+         ev["max_reintentos"], ev["minutos_expiracion"]),
+    ).fetchone()[0]
+
+    for item in ev["banco_items"]:
+        conn.execute(
+            """INSERT INTO item_evaluacion (evaluacion_id, enunciado, alternativas,
+                                            indice_correcta, explicaciones, hash_enunciado)
+               VALUES (%s,%s,%s::jsonb,%s,%s::jsonb,%s)
+               ON CONFLICT (evaluacion_id, hash_enunciado) DO NOTHING""",
+            (ev_id, item["enunciado"], json.dumps(item["alternativas"], ensure_ascii=False),
+             item["indice_correcta"], json.dumps(item["explicaciones"], ensure_ascii=False),
+             _hash(item["enunciado"])),
+        )
+
+    med = bloque["medalla"]
+    existe = conn.execute(
+        "SELECT id FROM definicion_medalla WHERE bloque_contenido_id = %s", (bc_id,)
+    ).fetchone()
+    if existe:
+        conn.execute(
+            "UPDATE definicion_medalla SET tipo=%s, nombre=%s, xp=%s WHERE id=%s",
+            (med["tipo"], med["nombre"], med["xp"], existe[0]),
+        )
+    else:
+        conn.execute(
+            """INSERT INTO definicion_medalla (bloque_contenido_id, tipo, nombre, xp)
+               VALUES (%s,%s,%s,%s)""",
+            (bc_id, med["tipo"], med["nombre"], med["xp"]),
+        )
+
+    return len(bloque["modulos"]), len(ev["banco_items"])

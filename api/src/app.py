@@ -234,6 +234,28 @@ class Respuesta(BaseModel):
     indice_elegido: int = Field(ge=0, le=3)
 
 
+@app.get("/bloques-ruta/{bloque_ruta_id}/modulos", tags=["contenido"])
+def modulos(bloque_ruta_id: UUID):
+    """
+    El microlearning del bloque, con su quiz formativo aparte.
+
+    `nivel_estandar_origen` muestra el anidamiento: en un bloque de nivel 3 conviven
+    módulos de origen 1, 2 y 3, porque el estándar superior incluye a los anteriores.
+    """
+    datos = filas(
+        """SELECT m.id, m.orden, m.titulo, m.cuerpo, m.duracion_min, m.xp,
+                  m.nivel_estandar_origen, bc.es_contenido_prueba
+             FROM modulo m
+             JOIN bloque_contenido bc ON bc.id = m.bloque_contenido_id
+             JOIN bloque_ruta br ON br.bloque_contenido_id = bc.id
+            WHERE br.id = %s ORDER BY m.orden""",
+        (bloque_ruta_id,),
+    )
+    if not datos:
+        raise HTTPException(404, "bloque de ruta inexistente o sin módulos")
+    return datos
+
+
 @app.get("/bloques-ruta/{bloque_ruta_id}/evaluacion", tags=["evaluación"])
 def ver_evaluacion(bloque_ruta_id: UUID):
     """Los ítems del banco. **Sin `indice_correcta`**: la respuesta no viaja al cliente."""
