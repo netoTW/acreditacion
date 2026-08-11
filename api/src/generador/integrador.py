@@ -140,20 +140,47 @@ def _reemplazar_contenido(conn, bc_id, bloque: dict) -> tuple[int, int]:
              _hash(item["enunciado"]), item.get("dificultad")),
         )
 
-    med = bloque["medalla"]
-    existe = conn.execute(
-        "SELECT id FROM definicion_medalla WHERE bloque_contenido_id = %s", (bc_id,)
-    ).fetchone()
-    if existe:
-        conn.execute(
-            "UPDATE definicion_medalla SET tipo=%s, nombre=%s, xp=%s WHERE id=%s",
-            (med["tipo"], med["nombre"], med["xp"], existe[0]),
-        )
-    else:
+    # Los dos rangos. Cuál se otorga lo decide la criticidad de la ruta, no esto.
+    for med in bloque["medallas"]:
         conn.execute(
             """INSERT INTO definicion_medalla (bloque_contenido_id, tipo, nombre, xp)
-               VALUES (%s,%s,%s,%s)""",
+               VALUES (%s,%s,%s,%s)
+               ON CONFLICT (bloque_contenido_id, tipo) DO UPDATE
+                 SET nombre = EXCLUDED.nombre, xp = EXCLUDED.xp""",
             (bc_id, med["tipo"], med["nombre"], med["xp"]),
         )
 
+    _reemplazar_desafio(conn, bc_id, bloque["desafio"])
+
     return len(bloque["modulos"]), len(ev["banco_items"])
+
+
+def _reemplazar_desafio(conn, bc_id, desafio: dict) -> None:
+    """
+    El desafío del bloque. Se rehace entero: sus decisiones no se referencian desde
+    ninguna insignia, así que no arrastra el problema de trazabilidad del banco.
+    """
+    desafio_id = conn.execute(
+        """INSERT INTO desafio_aplicado (bloque_contenido_id, titulo, rol_ficticio,
+                                         situacion, datos, es_contenido_prueba)
+           VALUES (%s,%s,%s,%s,%s::jsonb,%s)
+           ON CONFLICT (bloque_contenido_id) DO UPDATE
+             SET titulo = EXCLUDED.titulo, rol_ficticio = EXCLUDED.rol_ficticio,
+                 situacion = EXCLUDED.situacion, datos = EXCLUDED.datos
+           RETURNING id""",
+        (bc_id, desafio["titulo"], desafio["rol_ficticio"], desafio["situacion"],
+         json.dumps(desafio["datos"], ensure_ascii=False), desafio["es_contenido_prueba"]),
+    ).fetchone()[0]
+
+    conn.execute("DELETE FROM decision_desafio WHERE desafio_id = %s", (desafio_id,))
+    for d in desafio["decisiones"]:
+        conn.execute(
+            """INSERT INTO decision_desafio (desafio_id, orden, tipo, enunciado,
+                                             opciones, grupos, clave_correcta, explicacion)
+               VALUES (%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s)""",
+            (desafio_id, d["orden"], d["tipo"], d["enunciado"],
+             json.dumps(d["opciones"], ensure_ascii=False),
+             json.dumps(d["grupos"], ensure_ascii=False),
+             json.dumps(d["clave_correcta"], ensure_ascii=False),
+             d["explicacion"]),
+        )

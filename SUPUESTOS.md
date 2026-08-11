@@ -28,7 +28,7 @@
 |---|---|---|
 | S-06 | Sin evaluación adaptativa en el slice: banco fijo con ítems barajados por intento. La palabra sale de la UI. | VIGENTE |
 | S-27 | `es_contenido_prueba: true` se muestra **visible en la UI** de todo bloque generado. | VIGENTE |
-| S-32 | **Módulos por bloque según nivel:** N1 → 2, N2 → 3, N3 → 4. Conserva el default de 2 de CLAUDE.md §5 en el nivel base. Configurable en `modulos_por_nivel`. | VIGENTE |
+| S-32 | ~~**Módulos por bloque según nivel:** N1 → 2, N2 → 3, N3 → 4.~~ AIEP fijó una estructura idéntica en las cinco dimensiones: **2 módulos + 1 juego + evaluación**. La profundidad dejó de expresarse en cuántos módulos hay y pasó a cuánto trae cada uno (S-50). | **SUPERADO por S-50** |
 | S-45 | **Base de conocimiento:** 10 conceptos por dimensión con `nivel_minimo`, de modo que N1 use 6, N2 use 8 y N3 los 10. De cada concepto salen 3 ítems, así los bancos quedan en 18 / 24 / 30 — por sobre el mínimo de 3× los ítems por intento. | VIGENTE |
 | S-33 | La fuente declara **16 criterios** pero no los enumera ni indica su reparto entre dimensiones. `Criterio` se modela como entidad de primera clase y en el slice se genera como contenido de prueba. La lista oficial la inyecta el experto CNA de AIEP sin tocar el modelo. | VIGENTE |
 
@@ -87,3 +87,9 @@
 | S-03 | ~~La "sala 3D" del brief es el canvas 2D isométrico de la cáscara.~~ Respondido por el director en E-01: la meta es 3D, condicionada al spike. | **SUPERADO por S-41** |
 | S-41 | **El render de la Plaza se decide después del gate A4**, no antes. El servidor es agnóstico del render ([ADR-004](docs/decisiones/ADR-004-realtime-agnostico-de-render.md)): 2D y 3D consumen el mismo estado, así que E-01 sale del camino crítico. | VIGENTE |
 | S-42 | La actividad social de la Plaza es una **trivia grupal contra reloj que reusa el motor de juegos de la cáscara**, no un motor nuevo. Su XP es lúdico y con tope. | RATIFICADO |
+| S-48 | **Corte %→nivel de exigencia CNA:** ≥25% → 3, 15–24% → 2, ≤10% → 1. Es una **derivación del arquitecto**, no un dato del Excel: la fuente entrega el % y la marca de ruta crítica, pero no el nivel. Con estos cortes las 2 críticas de cada rol caen siempre en nivel 3. Parametrizado en `CORTES_NIVEL`; cambiarlo no toca nada más del sistema. | **A CONFIRMAR CON AIEP** |
+| S-49 | **Los docentes de aula van en N2 Liderazgo intermedio.** Ninguno de los tres roles nombra la docencia, pero Docencia es crítica en N2 y N3. Provisional hasta que AIEP lo diga; Pablo, el colaborador de prueba, queda ahí. | **A CONFIRMAR CON AIEP** |
+| S-50 | **Estructura escalonada:** todas las dimensiones llevan 2 módulos con quiz + 1 juego + evaluación. La **crítica suma** un desafío aplicado, sube el umbral a 85% y otorga medalla gold. La profundidad escala con el nivel: quices de 3/5/7 ítems y evaluaciones de 4/6/8. | VIGENTE |
+| S-51 | **La criticidad no se transcribe, se deriva:** son las 2 dimensiones de mayor % de cada rol. Coinciden exactamente con las 🔴 del Excel en los tres roles, y hay un test que lo contrasta. | VIGENTE |
+| S-52 | **El desafío aplicado es requisito, no gate.** Hay que resolverlo para abrir la evaluación reforzada, pero equivocarse no bloquea: paga menos XP lúdico y nada más. Un requisito que se puede reprobar sin consecuencia sería teatro; uno que bloquea sería un segundo umbral escondido. | VIGENTE |
+| S-53 | **XP de la medalla gold = 1,5× la silver** (300/450/600 por nivel). Exige más —desafío + 85%—, así que rinde más. | VIGENTE |

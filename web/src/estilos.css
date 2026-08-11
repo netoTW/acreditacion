@@ -540,3 +540,125 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .bandeja { min-height: 120px; }
   .mesa-pie .btn { width: 100%; }
 }
+
+/* ===================================================================
+   Modelo de impacto por rol: distribución %, ruta crítica y desafío
+   =================================================================== */
+
+/* --- la distribución en Mi Ruta --- */
+.distribucion { background: #fff; border: 1px solid var(--linea); border-radius: var(--r-lg);
+  padding: 20px 22px; margin-bottom: 22px; box-shadow: var(--sombra); }
+.dist-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  margin-bottom: 14px; }
+.dist-total { font-family: var(--mono); font-size: 11.5px; color: var(--niebla); }
+.dist-barras { display: flex; flex-direction: column; gap: 9px; }
+.dist-fila { display: grid; grid-template-columns: minmax(150px, 1.3fr) minmax(60px, 1fr) 46px auto;
+  align-items: center; gap: 12px; }
+.dist-nombre { font-size: 13.5px; font-weight: 550; display: flex; align-items: center; gap: 8px;
+  min-width: 0; }
+.dist-fila.critica .dist-nombre { color: var(--tinta); }
+.dist-barra { height: 9px; background: var(--linea); border-radius: 99px; overflow: hidden; }
+.dist-barra > span { display: block; height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, var(--menta), var(--menta-deep)); }
+.dist-fila.critica .dist-barra > span {
+  background: linear-gradient(90deg, var(--oro), #d99413); }
+.dist-pct { font-family: var(--mono); font-size: 13px; font-weight: 700; text-align: right;
+  font-variant-numeric: tabular-nums; }
+.dist-nivel { font-size: 11.5px; color: var(--niebla); white-space: nowrap; }
+
+/* La ruta crítica se nombra, no solo se colorea. */
+.marca-critica { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: #8a5a06; background: rgba(244, 183, 64, .22); border: 1px solid rgba(244, 183, 64, .55);
+  border-radius: 99px; padding: 2px 7px; white-space: nowrap; }
+
+/* --- el nodo crítico en el mapa --- */
+.nodo.critico .nodo-dot { box-shadow: 0 0 0 3px rgba(244, 183, 64, .55); }
+.nodo-label { display: flex; align-items: center; justify-content: center; gap: 6px;
+  flex-wrap: wrap; }
+.medalla-mini.gold { filter: drop-shadow(0 0 4px rgba(244, 183, 64, .8)); }
+
+/* --- la banda que explica la exigencia del bloque --- */
+.banda-exigencia { margin-top: 14px; padding: 11px 15px; border-radius: var(--r-sm);
+  font-size: 13px; line-height: 1.55; background: rgba(45, 212, 167, .12);
+  border: 1px solid rgba(45, 212, 167, .4); }
+.banda-exigencia.critica { background: rgba(244, 183, 64, .15);
+  border-color: rgba(244, 183, 64, .6); }
+.chip-critica { font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: #8a5a06; background: rgba(244, 183, 64, .22); border-radius: 99px; padding: 2px 7px;
+  margin-left: 8px; }
+
+/* --- el desafío aplicado --- */
+.silla { font-style: italic; color: var(--tinta-3); }
+.caso-situacion { background: #fff; border: 1px solid var(--linea); border-radius: var(--r-lg);
+  padding: 20px 22px; margin-bottom: 20px; box-shadow: var(--sombra); }
+.caso-situacion > p { margin: 0 0 16px; font-size: 14.5px; line-height: 1.6; }
+.caso-datos { display: flex; flex-wrap: wrap; gap: 10px; }
+.caso-dato { flex: 1 1 190px; background: var(--marfil); border: 1px solid var(--linea);
+  border-radius: var(--r-sm); padding: 12px 14px; }
+.cd-valor { display: block; font-family: var(--mono); font-size: 17px; font-weight: 700;
+  color: var(--tinta); font-variant-numeric: tabular-nums; }
+.cd-etiqueta { display: block; margin-top: 3px; font-size: 11.5px; color: var(--niebla);
+  line-height: 1.4; }
+.caso-nota { margin: 14px 0 0; font-size: 11.5px; color: var(--niebla); }
+
+.decisiones { display: flex; flex-direction: column; gap: 16px; }
+.decision { background: #fff; border: 1px solid var(--linea); border-radius: var(--r-lg);
+  padding: 20px 22px; box-shadow: var(--sombra); }
+.decision.bien { border-color: rgba(45, 212, 167, .6); }
+.decision.mal { border-color: rgba(225, 29, 60, .45); }
+.dec-num { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--niebla); margin-bottom: 8px; }
+.dec-enunciado { margin: 0 0 14px; font-size: 14.5px; line-height: 1.6; font-weight: 500; }
+.dec-pista { font-size: 12px; color: var(--niebla); margin-bottom: 4px; }
+.dec-opciones { display: flex; flex-direction: column; gap: 8px; }
+.dec-opcion { text-align: left; font: inherit; font-size: 13.5px; line-height: 1.5;
+  background: var(--marfil); border: 1.5px solid var(--linea); border-radius: var(--r-sm);
+  padding: 12px 14px; cursor: pointer; transition: border-color .12s, background .12s; }
+.dec-opcion:hover:not(:disabled) { border-color: var(--carmin-soft); }
+.dec-opcion.elegida { border-color: var(--carmin); background: rgba(225, 29, 60, .07); }
+.dec-opcion.correcta { border-color: var(--menta-deep); background: rgba(45, 212, 167, .14); }
+.dec-opcion:disabled { cursor: default; }
+.dec-opcion.casilla { display: flex; align-items: flex-start; gap: 10px; }
+.dec-opcion .marca { flex: 0 0 18px; width: 18px; height: 18px; border-radius: 5px;
+  border: 1.5px solid var(--niebla); display: grid; place-items: center; font-size: 12px;
+  font-weight: 700; color: var(--blanco); margin-top: 1px; }
+.dec-opcion.elegida .marca { background: var(--carmin); border-color: var(--carmin); }
+
+.dec-clasificacion { display: flex; flex-direction: column; gap: 10px; }
+.clas-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  background: var(--marfil); border: 1px solid var(--linea); border-radius: var(--r-sm);
+  padding: 12px 14px; }
+.clas-texto { flex: 1 1 260px; font-size: 13.5px; line-height: 1.5; }
+.clas-grupos { display: flex; gap: 6px; flex-wrap: wrap; }
+.clas-grupo { font: inherit; font-size: 12px; background: #fff; border: 1.5px solid var(--linea);
+  border-radius: 99px; padding: 6px 12px; cursor: pointer; }
+.clas-grupo.elegida { border-color: var(--carmin); background: rgba(225, 29, 60, .08); }
+.clas-grupo.correcta { border-color: var(--menta-deep); background: rgba(45, 212, 167, .16); }
+.clas-grupo:disabled { cursor: default; }
+.dec-explicacion { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--linea);
+  font-size: 13px; line-height: 1.6; color: var(--tinta-3); }
+
+.caso-pie { display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-wrap: wrap; margin-top: 20px; }
+.caso-pista { font-size: 13px; color: var(--niebla); }
+
+.caso-resultado { background: #fff; border: 1px solid var(--linea); border-radius: var(--r-lg);
+  padding: 22px; margin-bottom: 20px; box-shadow: var(--sombra); text-align: center; }
+.caso-resultado.perfecto { border-color: rgba(244, 183, 64, .65);
+  box-shadow: 0 0 0 4px rgba(244, 183, 64, .14), var(--sombra); }
+.cr-marca { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--niebla); }
+.caso-resultado.perfecto .cr-marca { color: #8a5a06; }
+.cr-puntaje { font-family: var(--disp); font-size: 42px; font-weight: 800; line-height: 1.1;
+  margin: 6px 0; font-variant-numeric: tabular-nums; }
+.cr-xp { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--menta-deep); }
+.cr-nota { display: block; font-family: var(--body); font-size: 11.5px; font-weight: 400;
+  color: var(--niebla); margin-top: 3px; }
+.cr-texto { max-width: 52ch; margin: 12px auto 0; font-size: 13px; line-height: 1.6;
+  color: var(--tinta-3); }
+.cr-acciones { margin-top: 16px; }
+
+@media (max-width: 700px) {
+  .dist-fila { grid-template-columns: 1fr auto; }
+  .dist-barra, .dist-nivel { grid-column: 1 / -1; }
+}

@@ -64,29 +64,79 @@ HITOS = [
     ("H13", "acreditacion", 2027, "Por definir", "Visita de pares evaluadores", None, None, 13),
 ]
 
-# ---------------------------------------------------------------------- cargos
-# Taxonomía estándar de IES chilena (S-30). El organigrama oficial de AIEP se
-# cablea después: son filas de datos, no código.
+# ----------------------------------------------------------------------- roles
+# Los 3 roles que AIEP definió en `docs-fuente/Impacto en dimensiones por nivel
+# (roles).xlsx`. Reemplazan la taxonomía de 6 cargos que servía de marcador de
+# posición (S-30). La tabla sigue llamándose `cargo`: cambian las filas, no el
+# modelo — el grano (rol, dimensión) es el mismo de siempre (ADR-003).
 CARGOS = [
-    ("RECTOR",        "Rector",                 "Conducción institucional; visión global del proceso"),
-    ("VICERRECTOR",   "Vicerrector Académico",  "Docencia y aseguramiento de la calidad"),
-    ("DIR_CARRERA",   "Director de Carrera",    "Docencia y vinculación con el medio en su carrera"),
-    ("DOCENTE",       "Docente",                "Aula y resultados del proceso de formación"),
-    ("COORD_CALIDAD", "Coordinador de Calidad", "Aseguramiento interno y gestión"),
-    ("ADMINISTRATIVO","Administrativo",         "Procesos de gestión y soporte institucional"),
+    ("N1", "Nivel 1 · Alta Dirección",
+     "Conducción institucional: gestión estratégica y aseguramiento de la calidad"),
+    ("N2", "Nivel 2 · Liderazgo intermedio",
+     "Conducción académica de la docencia y del aseguramiento en su unidad"),
+    ("N3", "Nivel 3 · Administrativo y apoyo",
+     "Procesos y soporte que sostienen la docencia y el aseguramiento"),
 ]
 
-# ----------------------------------------------------------------- LA MATRIZ
-# ADR-003. Nivel de estándar CNA exigido a cada cargo por dimensión.
-# Todo cargo toca las 5 con nivel >= 1: la acreditación es de todos.
-MATRIZ = {
-    "RECTOR":         {"GESTION": 3, "DOCENCIA": 2, "CALIDAD": 3, "VCM": 2, "ICI": 2},
-    "VICERRECTOR":    {"GESTION": 2, "DOCENCIA": 3, "CALIDAD": 3, "VCM": 1, "ICI": 1},
-    "DIR_CARRERA":    {"GESTION": 1, "DOCENCIA": 3, "CALIDAD": 2, "VCM": 3, "ICI": 1},
-    "DOCENTE":        {"GESTION": 1, "DOCENCIA": 3, "CALIDAD": 1, "VCM": 1, "ICI": 1},
-    "COORD_CALIDAD":  {"GESTION": 3, "DOCENCIA": 2, "CALIDAD": 3, "VCM": 1, "ICI": 1},
-    "ADMINISTRATIVO": {"GESTION": 2, "DOCENCIA": 1, "CALIDAD": 2, "VCM": 1, "ICI": 1},
+# --------------------------------------------- DISTRIBUCIÓN DE IMPACTO (AIEP)
+# Fuente: el Excel, verificado celda por celda. Cada rol suma 1.
+# Es el ÚNICO dato que se escribe a mano: el nivel de exigencia y la criticidad
+# se derivan de acá abajo, no se transcriben.
+DISTRIBUCION = {
+    "N1": {"GESTION": 0.30, "DOCENCIA": 0.15, "CALIDAD": 0.30, "VCM": 0.15, "ICI": 0.10},
+    "N2": {"GESTION": 0.10, "DOCENCIA": 0.35, "CALIDAD": 0.25, "VCM": 0.15, "ICI": 0.15},
+    "N3": {"GESTION": 0.15, "DOCENCIA": 0.25, "CALIDAD": 0.35, "VCM": 0.20, "ICI": 0.05},
 }
+
+# ------------------------------------------------- derivación %→nivel CNA
+# TODO CONFIRMAR CON AIEP (S-48): este corte es una derivación del arquitecto, no
+# un dato de la fuente. El Excel entrega el % y la marca de ruta crítica, pero no
+# dice qué nivel de estándar CNA le corresponde a cada rol en cada dimensión.
+# Con estos cortes, las 2 críticas de cada rol caen siempre en nivel 3, que es
+# coherente con el modelo; si AIEP tiene su propia tabla, se reemplaza ACÁ y nada
+# más del sistema cambia.
+CORTES_NIVEL = ((0.25, 3), (0.15, 2), (0.00, 1))   # (piso de %, nivel)
+
+# Cuántas dimensiones son críticas por rol. Del Excel: 2 marcadas por rol.
+CRITICAS_POR_ROL = 2
+
+# El umbral se refuerza en las dimensiones críticas: la medalla gold se gana
+# rindiendo más alto, no por pertenecer a un rol.
+UMBRAL_ESTANDAR = 0.80
+UMBRAL_CRITICO  = 0.85
+
+
+def nivel_de(pct: float) -> int:
+    """Nivel de exigencia CNA que corresponde a un peso. Parametrizado en CORTES_NIVEL."""
+    for piso, nivel in CORTES_NIVEL:
+        if pct >= piso:
+            return nivel
+    return 1
+
+
+def matriz_de(codigo_rol: str) -> dict[str, dict]:
+    """
+    La matriz del rol, derivada de su distribución.
+
+    Devuelve, por dimensión: el %, el nivel de exigencia, si es crítica y el
+    umbral que le corresponde. La criticidad son las `CRITICAS_POR_ROL` de mayor
+    peso; los empates se rompen por el orden oficial de las dimensiones, para que
+    la derivación sea determinista y no dependa del orden del diccionario.
+    """
+    pesos = DISTRIBUCION[codigo_rol]
+    orden_oficial = [d[0] for d in DIMENSIONES]
+    ranking = sorted(pesos, key=lambda d: (-pesos[d], orden_oficial.index(d)))
+    criticas = set(ranking[:CRITICAS_POR_ROL])
+
+    return {
+        dim: {
+            "pct": pesos[dim],
+            "nivel": nivel_de(pesos[dim]),
+            "critica": dim in criticas,
+            "umbral": UMBRAL_CRITICO if dim in criticas else UMBRAL_ESTANDAR,
+        }
+        for dim in orden_oficial
+    }
 
 # Anclaje de cada posición de la ruta a un hito real (S-43). La ruta se ordena
 # por exigencia descendente: primero la dimensión donde al cargo se le pide más.
@@ -113,20 +163,28 @@ COMITES_FIJOS = [
 ]
 
 # ------------------------------------------------------- los 3 del slice
-# Nombres de prueba: el director los renombra cuando quiera. Lo que importa es
-# que los tres cargos tengan matrices bien distintas (S-40).
+# Uno por rol, para que las tres rutas se puedan comparar lado a lado.
+#
+# TODO CONFIRMAR CON AIEP (S-49): dónde caen los DOCENTES. Los tres roles se
+# llaman Alta Dirección, Liderazgo intermedio y Administrativo y apoyo, y ninguno
+# nombra la docencia de aula, pero Docencia es crítica en N2 y N3. Provisional:
+# el docente va en N2, donde Docencia pesa 35% y es crítica. Pablo queda ahí.
 COLABORADORES = [
-    ("pablo@aiep.cl",           "Pablo",                            "DOCENTE",
+    ("pablo@aiep.cl",           "Pablo (docente · provisional N2)", "N2",
      "Sede Providencia",        ["Comité de Sede · Sede Providencia"]),
-    ("rectoria.prueba@aiep.cl", "Rectoría (prueba)",                "RECTOR",
+    ("rectoria.prueba@aiep.cl", "Rectoría (prueba)",                "N1",
      "Dirección Nacional de Aseguramiento de la Calidad",
      ["Junta Directiva", "Comité Central de Autoevaluación"]),
-    ("calidad.prueba@aiep.cl",  "Coordinación de Calidad (prueba)", "COORD_CALIDAD",
-     "Dirección Nacional de Aseguramiento de la Calidad",
-     ["Comité de Aseguramiento de la Calidad"]),
+    ("registro.prueba@aiep.cl", "Registro Curricular (prueba)",     "N3",
+     "Sede La Serena",          ["Comité de Sede · Sede La Serena"]),
 ]
 
 # --------------------------------------------------------- XP por nivel (S-37)
 XP_MODULO  = {1: 60,  2: 80,  3: 100}
 XP_MEDALLA = {1: 200, 2: 300, 3: 400}
-MODULOS_POR_NIVEL = {1: 2, 2: 3, 3: 4}          # S-32
+# La gold cuesta más y rinde más: mismo bloque, mayor exigencia (desafío + 85%).
+XP_MEDALLA_GOLD = {n: int(xp * 1.5) for n, xp in XP_MEDALLA.items()}
+# S-32 revisado: la estructura es la MISMA en las 5 dimensiones —2 módulos con
+# quiz + juego + evaluación—. La profundidad ya no se expresa en cuántos módulos
+# hay, sino en cuánto contenido lleva cada uno.
+MODULOS_POR_BLOQUE = 2

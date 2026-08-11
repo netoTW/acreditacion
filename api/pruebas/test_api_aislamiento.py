@@ -1,5 +1,5 @@
 """
-I-10 — aislamiento por cargo, en la capa API.
+I-10 — aislamiento por rol, en la capa API.
 
 CLAUDE.md §3: «la ruta de un rol no muestra el contenido ni el progreso de otro rol».
 Quedó declarado pendiente desde la Tanda 2 porque no se puede verificar en la base:
@@ -60,13 +60,13 @@ def _cab(token: str) -> dict:
 
 
 @pytest.fixture(scope="module")
-def docente(cliente):
-    return _token(cliente, "Docente")
+def apoyo(cliente):
+    return _token(cliente, "Nivel 3 · Administrativo y apoyo")
 
 
 @pytest.fixture(scope="module")
-def rector(cliente):
-    return _token(cliente, "Rector")
+def direccion(cliente):
+    return _token(cliente, "Nivel 1 · Alta Dirección")
 
 
 # ------------------------------------------------------------------ sesión
@@ -75,8 +75,8 @@ def test_sin_token_no_se_ve_nada(cliente):
         assert cliente.get(url).status_code == 401, url
 
 
-def test_token_manipulado_se_rechaza(cliente, docente):
-    partes = docente.split(".")
+def test_token_manipulado_se_rechaza(cliente, apoyo):
+    partes = apoyo.split(".")
     falsificado = partes[0] + "." + ("A" * len(partes[1]))
     assert cliente.get("/mi/ruta", headers=_cab(falsificado)).status_code == 401
 
@@ -88,62 +88,66 @@ def test_token_expirado_se_rechaza(cliente):
     assert cliente.get("/mi/ruta", headers=_cab(viejo)).status_code == 401
 
 
-def test_la_sesion_dice_quien_soy(cliente, docente):
-    yo = cliente.get("/auth/yo", headers=_cab(docente)).json()
-    assert yo["cargo"] == "Docente"
+def test_la_sesion_dice_quien_soy(cliente, apoyo):
+    yo = cliente.get("/auth/yo", headers=_cab(apoyo)).json()
+    assert yo["cargo"] == "Nivel 3 · Administrativo y apoyo"
     assert yo["escalon"] == "Explorador"
 
 
 # ---------------------------------------------------- I-10 · el aislamiento
-def test_i10_no_se_sirve_contenido_de_otro_cargo(cliente, docente, rector):
+def test_i10_no_se_sirve_contenido_de_otro_cargo(cliente, apoyo, direccion):
     """
-    El Rector tiene Gestión N3 en su ruta; el Docente tiene Gestión N1. Si el Docente
-    pide el bloque del Rector con su id, no puede recibirlo: es contenido de otro cargo,
+    Alta Dirección tiene Gestión al nivel 3; Administrativo y apoyo la tiene al 2. Si el segundo
+    pide el bloque del primero con su id, no puede recibirlo: es contenido de otro rol,
     a un nivel de exigencia que no le corresponde.
     """
-    ruta_rector = cliente.get("/mi/ruta", headers=_cab(rector)).json()
-    bloque_ajeno = ruta_rector[0]["bloque_ruta_id"]
+    ruta_direccion = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
+    bloque_ajeno = ruta_direccion[0]["bloque_ruta_id"]
 
     for url in (
         f"/bloques-ruta/{bloque_ajeno}/modulos",
         f"/bloques-ruta/{bloque_ajeno}/evaluacion",
         f"/bloques-ruta/{bloque_ajeno}/clave-de-respuestas",
     ):
-        r = cliente.get(url, headers=_cab(docente))
+        r = cliente.get(url, headers=_cab(apoyo))
         assert r.status_code == 404, f"{url} devolvió {r.status_code}"
 
-    r = cliente.post(f"/bloques-ruta/{bloque_ajeno}/intentos", headers=_cab(docente))
+    r = cliente.post(f"/bloques-ruta/{bloque_ajeno}/intentos", headers=_cab(apoyo))
     assert r.status_code == 404, "no se puede abrir intento sobre el bloque de otro"
 
 
-def test_i10_responde_404_y_no_403(cliente, docente, rector):
+def test_i10_responde_404_y_no_403(cliente, apoyo, direccion):
     """
     Un 403 confirmaría que el bloque existe, y eso ya filtra información sobre el
-    contenido de otro cargo. La respuesta es indistinguible de un id inventado.
+    contenido de otro rol. La respuesta es indistinguible de un id inventado.
     """
-    ajeno = cliente.get("/mi/ruta", headers=_cab(rector)).json()[0]["bloque_ruta_id"]
+    ajeno = cliente.get("/mi/ruta", headers=_cab(direccion)).json()[0]["bloque_ruta_id"]
     inventado = "00000000-0000-4000-8000-000000000000"
 
-    r_ajeno = cliente.get(f"/bloques-ruta/{ajeno}/modulos", headers=_cab(docente))
-    r_inventado = cliente.get(f"/bloques-ruta/{inventado}/modulos", headers=_cab(docente))
+    r_ajeno = cliente.get(f"/bloques-ruta/{ajeno}/modulos", headers=_cab(apoyo))
+    r_inventado = cliente.get(f"/bloques-ruta/{inventado}/modulos", headers=_cab(apoyo))
     assert r_ajeno.status_code == r_inventado.status_code == 404
     assert r_ajeno.json() == r_inventado.json()
 
 
-def test_lo_propio_si_se_sirve(cliente, docente):
-    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+def test_lo_propio_si_se_sirve(cliente, apoyo):
+    """La ruta abre por donde el rol más impacta: Aseguramiento, 35% y crítica."""
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
     assert len(ruta) == 5
-    assert ruta[0]["dimension"] == "DOCENCIA" and ruta[0]["nivel_estandar"] == 3
+    assert ruta[0]["dimension"] == "CALIDAD" and ruta[0]["nivel_estandar"] == 3
+    assert ruta[0]["es_critica"] is True
+    assert float(ruta[0]["peso_ranking"]) == 0.35
 
     mio = ruta[0]["bloque_ruta_id"]
-    modulos = cliente.get(f"/bloques-ruta/{mio}/modulos", headers=_cab(docente))
-    assert modulos.status_code == 200 and len(modulos.json()) == 4
+    modulos = cliente.get(f"/bloques-ruta/{mio}/modulos", headers=_cab(apoyo))
+    # La estructura es la misma en las cinco dimensiones: 2 módulos, siempre.
+    assert modulos.status_code == 200 and len(modulos.json()) == 2
 
 
-def test_la_evaluacion_no_filtra_la_respuesta_correcta(cliente, docente):
-    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+def test_la_evaluacion_no_filtra_la_respuesta_correcta(cliente, apoyo):
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
     items = cliente.get(
-        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/evaluacion", headers=_cab(docente)
+        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/evaluacion", headers=_cab(apoyo)
     ).json()
     assert items
     for i in items:
@@ -152,40 +156,56 @@ def test_la_evaluacion_no_filtra_la_respuesta_correcta(cliente, docente):
 
 
 def _ver_modulos(cliente, token, bloque_ruta_id):
-    """La evaluación se rinde después de recorrer el bloque: el servidor lo exige."""
+    """
+    Deja el bloque listo para rendir: el servidor exige recorrerlo antes.
+
+    En una dimensión crítica no basta con los módulos —hay que resolver además el
+    desafío aplicado—, así que este ayudante lo resuelve. Da igual si se acierta:
+    el requisito es haberlo enfrentado, y la medalla sigue dependiendo del 85%.
+    """
     for m in cliente.get(f"/bloques-ruta/{bloque_ruta_id}/modulos", headers=_cab(token)).json():
         cliente.post(f"/modulos/{m['id']}/completar", headers=_cab(token))
 
+    caso = cliente.get(f"/bloques-ruta/{bloque_ruta_id}/desafio", headers=_cab(token))
+    if caso.status_code == 200:
+        cliente.post(
+            f"/bloques-ruta/{bloque_ruta_id}/desafio/resultado", headers=_cab(token),
+            json={"respuestas": [
+                {"decision_id": d["decision_id"], "respuesta": d["opciones"][0]["clave"]}
+                for d in caso.json()["decisiones"]
+            ]},
+        )
 
-def test_no_se_puede_operar_el_intento_de_otro(cliente, docente, rector):
-    ruta_rector = cliente.get("/mi/ruta", headers=_cab(rector)).json()
-    _ver_modulos(cliente, rector, ruta_rector[0]["bloque_ruta_id"])
+
+def test_no_se_puede_operar_el_intento_de_otro(cliente, apoyo, direccion):
+    ruta_direccion = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
+    _ver_modulos(cliente, direccion, ruta_direccion[0]["bloque_ruta_id"])
     intento = cliente.post(
-        f"/bloques-ruta/{ruta_rector[0]['bloque_ruta_id']}/intentos", headers=_cab(rector)
+        f"/bloques-ruta/{ruta_direccion[0]['bloque_ruta_id']}/intentos", headers=_cab(direccion)
     ).json()["intento_id"]
 
-    assert cliente.post(f"/intentos/{intento}/cerrar", headers=_cab(docente)).status_code == 404
+    assert cliente.post(f"/intentos/{intento}/cerrar", headers=_cab(apoyo)).status_code == 404
     r = cliente.post(
         f"/intentos/{intento}/respuestas",
-        headers=_cab(docente),
+        headers=_cab(apoyo),
         json={"item_id": "00000000-0000-4000-8000-000000000000", "indice_elegido": 0},
     )
     assert r.status_code == 404
 
 
 # ------------------------------------------- permisos institucionales (S-35)
-def test_el_panel_de_gestion_pide_permiso_institucional(cliente, docente, rector):
-    """El permiso sale de la membresía de comité, no del cargo."""
-    assert cliente.get("/colaboradores", headers=_cab(docente)).status_code == 403
-    assert cliente.get("/catalogo/contenido", headers=_cab(docente)).status_code == 403
+def test_el_panel_de_gestion_pide_permiso_institucional(cliente, apoyo, direccion):
+    """El permiso sale de la membresía de comité, no del rol."""
+    assert cliente.get("/colaboradores", headers=_cab(apoyo)).status_code == 403
+    assert cliente.get("/catalogo/contenido", headers=_cab(apoyo)).status_code == 403
 
-    assert cliente.get("/colaboradores", headers=_cab(rector)).status_code == 200
-    assert cliente.get("/catalogo/contenido", headers=_cab(rector)).status_code == 200
+    assert cliente.get("/colaboradores", headers=_cab(direccion)).status_code == 200
+    assert cliente.get("/catalogo/contenido", headers=_cab(direccion)).status_code == 200
 
 
-def test_el_ranking_es_agregado_y_no_filtra_insignias_ajenas(cliente, docente):
+def test_el_ranking_es_agregado_y_no_filtra_insignias_ajenas(cliente, apoyo):
     """S-16: nombre, unidad, XP y conteo. Nunca el nombre de insignias de otro cargo."""
-    filas = cliente.get("/ranking", headers=_cab(docente)).json()
+    filas = cliente.get("/ranking", headers=_cab(apoyo)).json()
     assert len(filas) == 3
     for f in filas:
         assert isinstance(f["insignias"], int)
@@ -231,107 +251,140 @@ def test_un_origen_externo_no_recibe_la_cabecera(cliente):
 
 
 # ------------------------------------------------- D1b · bloque y módulos
-def test_el_bloque_trae_modulos_evaluacion_y_medalla(cliente, docente):
-    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
-    b = cliente.get(f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}", headers=_cab(docente)).json()
+def test_el_bloque_trae_modulos_evaluacion_y_medalla(cliente, apoyo):
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
+    b = cliente.get(f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}", headers=_cab(apoyo)).json()
 
-    assert b["dimension"] == "DOCENCIA" and b["nivel_estandar"] == 3
-    assert len(b["modulos"]) == 4
-    assert {m["nivel_estandar_origen"] for m in b["modulos"]} == {1, 2, 3}
-    assert b["medalla_xp"] == 400 and float(b["umbral_aprobacion"]) == 0.8
+    # Aseguramiento es la dimensión crítica de este rol: 35%, nivel 3, gold y 85%.
+    assert b["dimension"] == "CALIDAD" and b["nivel_estandar"] == 3
+    assert b["es_critica"] is True
+    assert len(b["modulos"]) == 2, "la estructura es la misma en las cinco dimensiones"
+    assert [m["nivel_estandar_origen"] for m in b["modulos"]] == [1, 3]
+    assert b["medalla_tipo"] == "gold" and b["medalla_xp"] == 600
+    assert float(b["umbral_aprobacion"]) == 0.85, "la crítica exige más que el 80%"
     assert b["modulos_completos"] == 0
+    assert b["desafio_pendiente"] is True
     assert b["evaluacion_disponible"] is False, "la evaluación no se abre sin ver los módulos"
 
 
-def test_completar_modulos_abre_la_evaluacion_y_suma_xp_una_vez(cliente, docente):
-    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
-    bid = ruta[0]["bloque_ruta_id"]
-    b = cliente.get(f"/bloques-ruta/{bid}", headers=_cab(docente)).json()
+def test_una_dimension_estandar_lleva_silver_al_80_y_sin_desafio(cliente, apoyo):
+    """El contraste: mismo esqueleto, menos exigencia. Investigación pesa 5% en N3."""
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
+    estandar = next(x for x in ruta if x["dimension"] == "ICI")
+    b = cliente.get(f"/bloques-ruta/{estandar['bloque_ruta_id']}", headers=_cab(apoyo)).json()
 
-    antes = cliente.get("/mi/estado", headers=_cab(docente)).json()["xp_acreditable"]
+    assert b["es_critica"] is False
+    assert len(b["modulos"]) == 2, "la estructura NO cambia: cambia la profundidad"
+    assert b["medalla_tipo"] == "silver" and float(b["umbral_aprobacion"]) == 0.8
+    assert b["desafio_pendiente"] is False
+    # Y el desafío ni siquiera existe acá: no es que falte, es que no lleva.
+    assert cliente.get(
+        f"/bloques-ruta/{estandar['bloque_ruta_id']}/desafio", headers=_cab(apoyo)
+    ).status_code == 409
+
+
+def test_completar_modulos_abre_la_evaluacion_y_suma_xp_una_vez(cliente, apoyo):
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
+    bid = ruta[0]["bloque_ruta_id"]
+    b = cliente.get(f"/bloques-ruta/{bid}", headers=_cab(apoyo)).json()
+
+    antes = cliente.get("/mi/estado", headers=_cab(apoyo)).json()["xp_acreditable"]
     for m in b["modulos"]:
-        r = cliente.post(f"/modulos/{m['id']}/completar", headers=_cab(docente)).json()
+        r = cliente.post(f"/modulos/{m['id']}/completar", headers=_cab(apoyo)).json()
         assert r["ya_estaba"] is False and r["xp_otorgado"] == 100
 
     # marcar de nuevo no vuelve a pagar
-    repetido = cliente.post(f"/modulos/{b['modulos'][0]['id']}/completar", headers=_cab(docente)).json()
+    repetido = cliente.post(f"/modulos/{b['modulos'][0]['id']}/completar", headers=_cab(apoyo)).json()
     assert repetido["ya_estaba"] is True and repetido["xp_otorgado"] == 0
 
-    despues = cliente.get("/mi/estado", headers=_cab(docente)).json()
-    assert despues["xp_acreditable"] == antes + 400
+    despues = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    assert despues["xp_acreditable"] == antes + 200
     assert despues["insignias"] == 0, "ver módulos no otorga insignia"
 
-    b2 = cliente.get(f"/bloques-ruta/{bid}", headers=_cab(docente)).json()
-    assert b2["modulos_completos"] == 4 and b2["evaluacion_disponible"] is True
+    # Bloque crítico: con los módulos vistos la evaluación TODAVÍA no se abre.
+    b2 = cliente.get(f"/bloques-ruta/{bid}", headers=_cab(apoyo)).json()
+    assert b2["modulos_completos"] == 2
+    assert b2["evaluacion_disponible"] is False, "falta el desafío aplicado"
+
+    caso = cliente.get(f"/bloques-ruta/{bid}/desafio", headers=_cab(apoyo)).json()
+    cliente.post(
+        f"/bloques-ruta/{bid}/desafio/resultado", headers=_cab(apoyo),
+        json={"respuestas": [
+            {"decision_id": d["decision_id"], "respuesta": d["opciones"][0]["clave"]}
+            for d in caso["decisiones"]
+        ]},
+    )
+    b3 = cliente.get(f"/bloques-ruta/{bid}", headers=_cab(apoyo)).json()
+    assert b3["evaluacion_disponible"] is True
 
 
-def test_no_se_puede_completar_un_modulo_de_otro_cargo(cliente, docente, rector):
-    ruta_rector = cliente.get("/mi/ruta", headers=_cab(rector)).json()
+def test_no_se_puede_completar_un_modulo_de_otro_cargo(cliente, apoyo, direccion):
+    ruta_direccion = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
     ajeno = cliente.get(
-        f"/bloques-ruta/{ruta_rector[0]['bloque_ruta_id']}/modulos", headers=_cab(rector)
+        f"/bloques-ruta/{ruta_direccion[0]['bloque_ruta_id']}/modulos", headers=_cab(direccion)
     ).json()[0]
-    r = cliente.post(f"/modulos/{ajeno['id']}/completar", headers=_cab(docente))
+    r = cliente.post(f"/modulos/{ajeno['id']}/completar", headers=_cab(apoyo))
     assert r.status_code == 404
 
 
-def test_aprobar_un_bloque_abre_el_siguiente(cliente, rector):
+def test_aprobar_un_bloque_abre_el_siguiente(cliente, direccion):
     """Sin esto la ruta queda con un solo bloque abierto para siempre."""
-    ruta = cliente.get("/mi/ruta", headers=_cab(rector)).json()
+    ruta = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
     primero, segundo = ruta[0], ruta[1]
     assert segundo["estado"] == "bloqueado"
-    _ver_modulos(cliente, rector, primero["bloque_ruta_id"])
+    _ver_modulos(cliente, direccion, primero["bloque_ruta_id"])
 
     clave = {c["item_id"]: c["indice_correcta"] for c in cliente.get(
-        f"/bloques-ruta/{primero['bloque_ruta_id']}/clave-de-respuestas", headers=_cab(rector)
+        f"/bloques-ruta/{primero['bloque_ruta_id']}/clave-de-respuestas", headers=_cab(direccion)
     ).json()}
     intento = cliente.post(
-        f"/bloques-ruta/{primero['bloque_ruta_id']}/intentos", headers=_cab(rector)
+        f"/bloques-ruta/{primero['bloque_ruta_id']}/intentos", headers=_cab(direccion)
     ).json()
     for item in intento["items_servidos"]:
-        cliente.post(f"/intentos/{intento['intento_id']}/respuestas", headers=_cab(rector),
+        cliente.post(f"/intentos/{intento['intento_id']}/respuestas", headers=_cab(direccion),
                      json={"item_id": item, "indice_elegido": clave[item]})
     assert cliente.post(f"/intentos/{intento['intento_id']}/cerrar",
-                        headers=_cab(rector)).json()["aprobado"] is True
+                        headers=_cab(direccion)).json()["aprobado"] is True
 
-    ruta2 = cliente.get("/mi/ruta", headers=_cab(rector)).json()
+    ruta2 = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
     assert ruta2[0]["estado"] == "completo"
     assert ruta2[1]["estado"] == "disponible", "el bloque siguiente debe abrirse"
 
 
 # ------------------------------------------------ D2 · quiz formativo
-def test_el_quiz_entrega_la_respuesta_para_dar_feedback(cliente, docente):
+def test_el_quiz_entrega_la_respuesta_para_dar_feedback(cliente, apoyo):
     """A diferencia del banco de la evaluación, acá la correcta SÍ viaja: es formativo."""
-    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
     mod = cliente.get(
-        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(docente)
+        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(apoyo)
     ).json()[0]
 
-    items = cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(docente)).json()
+    items = cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(apoyo)).json()
     assert len(items) >= 3
     for i in items:
         assert 0 <= i["indice_correcta"] <= 3
         assert len(i["alternativas"]) == 4 and len(i["explicaciones"]) == 4
 
 
-def test_el_quiz_de_otro_cargo_no_se_sirve(cliente, docente, rector):
-    ruta_rector = cliente.get("/mi/ruta", headers=_cab(rector)).json()
+def test_el_quiz_de_otro_cargo_no_se_sirve(cliente, apoyo, direccion):
+    ruta_direccion = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
     ajeno = cliente.get(
-        f"/bloques-ruta/{ruta_rector[0]['bloque_ruta_id']}/modulos", headers=_cab(rector)
+        f"/bloques-ruta/{ruta_direccion[0]['bloque_ruta_id']}/modulos", headers=_cab(direccion)
     ).json()[0]
-    assert cliente.get(f"/modulos/{ajeno['id']}/quiz", headers=_cab(docente)).status_code == 404
+    assert cliente.get(f"/modulos/{ajeno['id']}/quiz", headers=_cab(apoyo)).status_code == 404
 
 
-def test_el_servidor_recalcula_racha_y_xp(cliente, docente):
+def test_el_servidor_recalcula_racha_y_xp(cliente, apoyo):
     """El cliente manda qué eligió; los aciertos, la racha y el XP los pone el servidor."""
-    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
     mod = cliente.get(
-        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(docente)
+        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(apoyo)
     ).json()[0]
-    items = cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(docente)).json()
+    items = cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(apoyo)).json()
 
     # Todo correcto: la racha crece y el XP es 30 + 40 + 50 + …
     respuestas = [{"item_id": i["id"], "indice_elegido": i["indice_correcta"]} for i in items]
-    r = cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(docente),
+    r = cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(apoyo),
                      json={"respuestas": respuestas}).json()
 
     esperado = sum(20 + (n + 1) * 10 for n in range(len(items)))
@@ -340,37 +393,29 @@ def test_el_servidor_recalcula_racha_y_xp(cliente, docente):
     assert r["xp_otorgado"] == esperado
 
 
-def test_el_xp_del_quiz_es_ludico_y_no_mueve_el_escalon(cliente, docente):
+def test_el_xp_del_quiz_es_ludico_y_no_mueve_el_escalon(cliente, apoyo):
     """Jugar no puede acercar a nadie a una medalla ni subirlo de escalón (S-04)."""
-    antes = cliente.get("/mi/estado", headers=_cab(docente)).json()
-    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
-    mod = cliente.get(
-        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(docente)
-    ).json()[1]
-    items = cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(docente)).json()
+    antes = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    mod, items = _items_quiz(cliente, apoyo, 1)
 
-    cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(docente),
+    cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(apoyo),
                  json={"respuestas": [{"item_id": i["id"], "indice_elegido": i["indice_correcta"]}
                                       for i in items]})
 
-    despues = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    despues = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
     assert despues["xp_acreditable"] == antes["xp_acreditable"], "el quiz no da XP acreditable"
     assert despues["xp_total"] > antes["xp_total"], "sí suma al total, que es lo que ve el ranking"
     assert despues["insignias"] == antes["insignias"]
 
 
-def test_repetir_el_quiz_el_mismo_dia_no_vuelve_a_pagar(cliente, docente):
-    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
-    mod = cliente.get(
-        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(docente)
-    ).json()[2]
-    items = cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(docente)).json()
+def test_repetir_el_quiz_el_mismo_dia_no_vuelve_a_pagar(cliente, apoyo):
+    mod, items = _items_quiz(cliente, apoyo, 2)
     cuerpo = {"respuestas": [{"item_id": i["id"], "indice_elegido": i["indice_correcta"]}
                             for i in items]}
 
-    primero = cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(docente),
+    primero = cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(apoyo),
                            json=cuerpo).json()
-    segundo = cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(docente),
+    segundo = cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(apoyo),
                            json=cuerpo).json()
 
     assert primero["xp_otorgado"] > 0
@@ -378,119 +423,128 @@ def test_repetir_el_quiz_el_mismo_dia_no_vuelve_a_pagar(cliente, docente):
     assert segundo["aciertos"] == primero["aciertos"], "el resultado igual se informa"
 
 
-def test_una_racha_rota_reduce_el_xp(cliente, docente):
+def test_una_racha_rota_reduce_el_xp(cliente, apoyo):
     """Fallar en medio corta el multiplicador: es la mecánica de la cáscara."""
-    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
-    mod = cliente.get(
-        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(docente)
-    ).json()[3]
-    items = cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(docente)).json()
+    mod, items = _items_quiz(cliente, apoyo, 3)
 
     respuestas = []
     for n, i in enumerate(items):
         elegido = i["indice_correcta"] if n != 1 else (i["indice_correcta"] + 1) % 4
         respuestas.append({"item_id": i["id"], "indice_elegido": elegido})
 
-    r = cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(docente),
+    r = cliente.post(f"/modulos/{mod['id']}/quiz/resultado", headers=_cab(apoyo),
                      json={"respuestas": respuestas}).json()
     assert r["aciertos"] == len(items) - 1
     assert r["mejor_racha"] < len(items), "la racha se cortó en el fallo"
 
 
 # --------------------------------------------- D2b · evaluación final
-def test_la_evaluacion_exige_haber_visto_los_modulos(cliente, rector):
+def test_la_evaluacion_exige_haber_visto_los_modulos(cliente, direccion):
     """No basta con que la pantalla lo esconda: el servidor lo rechaza."""
-    ruta = cliente.get("/mi/ruta", headers=_cab(rector)).json()
+    ruta = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
     pendiente = next(b for b in ruta if b["estado"] != "completo")
-    r = cliente.post(f"/bloques-ruta/{pendiente['bloque_ruta_id']}/intentos", headers=_cab(rector))
+    r = cliente.post(f"/bloques-ruta/{pendiente['bloque_ruta_id']}/intentos", headers=_cab(direccion))
     assert r.status_code == 409
     assert "módulos" in r.json()["detail"]
 
 
-def test_el_intento_se_retoma_con_lo_ya_respondido(cliente, docente):
+def test_el_intento_se_retoma_con_lo_ya_respondido(cliente, apoyo):
     """S-14: si el navegador se cierra a mitad de la prueba, al volver está todo."""
-    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
     bid = ruta[0]["bloque_ruta_id"]
-    _ver_modulos(cliente, docente, bid)
+    _ver_modulos(cliente, apoyo, bid)
 
-    intento = cliente.post(f"/bloques-ruta/{bid}/intentos", headers=_cab(docente)).json()
-    detalle = cliente.get(f"/intentos/{intento['intento_id']}", headers=_cab(docente)).json()
-    assert len(detalle["items"]) == 5
+    intento = cliente.post(f"/bloques-ruta/{bid}/intentos", headers=_cab(apoyo)).json()
+    detalle = cliente.get(f"/intentos/{intento['intento_id']}", headers=_cab(apoyo)).json()
+    # 8 ítems: la profundidad la fija el nivel de exigencia del bloque (N3).
+    assert len(detalle["items"]) == 8
     assert detalle["respuestas"] == {}
     for i in detalle["items"]:
         assert "indice_correcta" not in i, "la respuesta no viaja jamás en la evaluación"
 
     primero = detalle["items"][0]["item_id"]
-    cliente.post(f"/intentos/{intento['intento_id']}/respuestas", headers=_cab(docente),
+    cliente.post(f"/intentos/{intento['intento_id']}/respuestas", headers=_cab(apoyo),
                  json={"item_id": primero, "indice_elegido": 2})
 
     # "recargar": se vuelve a abrir y debe devolver EL MISMO intento, con la respuesta
-    otra_vez = cliente.post(f"/bloques-ruta/{bid}/intentos", headers=_cab(docente)).json()
+    otra_vez = cliente.post(f"/bloques-ruta/{bid}/intentos", headers=_cab(apoyo)).json()
     assert otra_vez["intento_id"] == intento["intento_id"]
-    retomado = cliente.get(f"/intentos/{intento['intento_id']}", headers=_cab(docente)).json()
+    retomado = cliente.get(f"/intentos/{intento['intento_id']}", headers=_cab(apoyo)).json()
     assert retomado["respuestas"][primero] == 2
     assert [i["item_id"] for i in retomado["items"]] == [i["item_id"] for i in detalle["items"]]
 
 
-def test_el_canario_en_la_api_reprobar_no_deja_nada(cliente, docente):
-    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+def test_el_canario_en_la_api_reprobar_no_deja_nada(cliente, apoyo):
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
     bid = ruta[0]["bloque_ruta_id"]
-    _ver_modulos(cliente, docente, bid)
-    antes = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    _ver_modulos(cliente, apoyo, bid)
+    antes = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
 
-    intento = cliente.post(f"/bloques-ruta/{bid}/intentos", headers=_cab(docente)).json()
+    intento = cliente.post(f"/bloques-ruta/{bid}/intentos", headers=_cab(apoyo)).json()
     clave = {c["item_id"]: c["indice_correcta"] for c in cliente.get(
-        f"/bloques-ruta/{bid}/clave-de-respuestas", headers=_cab(docente)).json()}
+        f"/bloques-ruta/{bid}/clave-de-respuestas", headers=_cab(apoyo)).json()}
     for n, item in enumerate(intento["items_servidos"]):
         # solo una correcta de cinco → 20%
         elegido = clave[item] if n == 0 else (clave[item] + 1) % 4
-        cliente.post(f"/intentos/{intento['intento_id']}/respuestas", headers=_cab(docente),
+        cliente.post(f"/intentos/{intento['intento_id']}/respuestas", headers=_cab(apoyo),
                      json={"item_id": item, "indice_elegido": elegido})
 
-    r = cliente.post(f"/intentos/{intento['intento_id']}/cerrar", headers=_cab(docente)).json()
+    r = cliente.post(f"/intentos/{intento['intento_id']}/cerrar", headers=_cab(apoyo)).json()
     assert r["aprobado"] is False and r["insignia_id"] is None and r["xp_otorgado"] == 0
 
-    despues = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    despues = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
     assert despues["insignias"] == antes["insignias"], "reprobar no otorga insignia"
     assert despues["xp_acreditable"] == antes["xp_acreditable"], "ni XP acreditable"
 
-    bloque = cliente.get(f"/bloques-ruta/{bid}", headers=_cab(docente)).json()
+    bloque = cliente.get(f"/bloques-ruta/{bid}", headers=_cab(apoyo)).json()
     assert bloque["estado"] != "completo" and bloque["obtenida"] == 0
 
 
-def test_aprobar_al_umbral_si_otorga_y_deja_respaldo(cliente, docente):
-    ruta = cliente.get("/mi/ruta", headers=_cab(docente)).json()
+def test_aprobar_al_umbral_si_otorga_y_deja_respaldo(cliente, apoyo):
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
     bid = ruta[0]["bloque_ruta_id"]
     clave = {c["item_id"]: c["indice_correcta"] for c in cliente.get(
-        f"/bloques-ruta/{bid}/clave-de-respuestas", headers=_cab(docente)).json()}
+        f"/bloques-ruta/{bid}/clave-de-respuestas", headers=_cab(apoyo)).json()}
 
-    intento = cliente.post(f"/bloques-ruta/{bid}/intentos", headers=_cab(docente)).json()
+    intento = cliente.post(f"/bloques-ruta/{bid}/intentos", headers=_cab(apoyo)).json()
     for item in intento["items_servidos"]:
-        cliente.post(f"/intentos/{intento['intento_id']}/respuestas", headers=_cab(docente),
+        cliente.post(f"/intentos/{intento['intento_id']}/respuestas", headers=_cab(apoyo),
                      json={"item_id": item, "indice_elegido": clave[item]})
 
-    r = cliente.post(f"/intentos/{intento['intento_id']}/cerrar", headers=_cab(docente)).json()
-    assert r["aprobado"] is True and r["insignia_id"] is not None and r["xp_otorgado"] == 400
+    r = cliente.post(f"/intentos/{intento['intento_id']}/cerrar", headers=_cab(apoyo)).json()
+    # Dimensión crítica: la medalla que nace es la GOLD, y rinde más que la silver.
+    assert r["aprobado"] is True and r["insignia_id"] is not None and r["xp_otorgado"] == 600
 
-    insignias = cliente.get("/mi/insignias", headers=_cab(docente)).json()
+    insignias = cliente.get("/mi/insignias", headers=_cab(apoyo)).json()
     assert len(insignias) == 1
+    assert insignias[0]["tipo"] == "gold"
     assert insignias[0]["puntaje_del_respaldo"] == 1.0
     assert insignias[0]["numero_intento"] == 2, "la respalda el intento aprobado, el segundo"
 
 
 # ------------------------------------------------------- M1 · Calibre
 def _items_quiz(cliente, token, n_modulo=0):
+    """
+    Un módulo de la ruta y su quiz.
+
+    Con 2 módulos por bloque, los índices altos salen del bloque siguiente. Lo que
+    importa acá es que cada prueba tome un módulo DISTINTO: el tope diario de XP
+    lúdico es por juego, y repetir módulo haría que la segunda no pagara.
+    """
     ruta = cliente.get("/mi/ruta", headers=_cab(token)).json()
-    mod = cliente.get(
-        f"/bloques-ruta/{ruta[0]['bloque_ruta_id']}/modulos", headers=_cab(token)
-    ).json()[n_modulo]
+    modulos = []
+    for b in ruta:
+        modulos += cliente.get(
+            f"/bloques-ruta/{b['bloque_ruta_id']}/modulos", headers=_cab(token)
+        ).json()
+    mod = modulos[n_modulo]
     return mod, cliente.get(f"/modulos/{mod['id']}/quiz", headers=_cab(token)).json()
 
 
-def test_calibre_premia_arriesgar_y_castiga_equivocarse_arriesgando(cliente, docente):
-    mod, items = _items_quiz(cliente, docente, 0)
+def test_calibre_premia_arriesgar_y_castiga_equivocarse_arriesgando(cliente, apoyo):
+    mod, items = _items_quiz(cliente, apoyo, 4)
     # Todo correcto y todo "Seguro": 60 por ítem + bono de calibrado
-    r = cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(docente),
+    r = cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(apoyo),
                      json={"respuestas": [{"item_id": i["id"], "indice_elegido": i["indice_correcta"],
                                            "seguro": True} for i in items]}).json()
     assert r["puntos"] == len(items) * 60 + 50
@@ -498,10 +552,10 @@ def test_calibre_premia_arriesgar_y_castiga_equivocarse_arriesgando(cliente, doc
     assert r["xp_otorgado"] == r["puntos"]
 
 
-def test_calibre_el_marcador_puede_quedar_negativo_pero_el_xp_no(cliente, docente):
+def test_calibre_el_marcador_puede_quedar_negativo_pero_el_xp_no(cliente, apoyo):
     """El castigo es no ganar, no perder XP ya ganado."""
-    mod, items = _items_quiz(cliente, docente, 1)
-    r = cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(docente),
+    mod, items = _items_quiz(cliente, apoyo, 5)
+    r = cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(apoyo),
                      json={"respuestas": [{"item_id": i["id"],
                                            "indice_elegido": (i["indice_correcta"] + 1) % 4,
                                            "seguro": True} for i in items]}).json()
@@ -510,71 +564,71 @@ def test_calibre_el_marcador_puede_quedar_negativo_pero_el_xp_no(cliente, docent
     assert r["bono_calibrado"] is False
 
 
-def test_calibre_ir_siempre_a_lo_seguro_no_gana_el_bono(cliente, docente):
+def test_calibre_ir_siempre_a_lo_seguro_no_gana_el_bono(cliente, apoyo):
     """El bono premia calibración, no volumen: hay que declarar seguro y acertar."""
-    mod, items = _items_quiz(cliente, docente, 2)
-    r = cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(docente),
+    mod, items = _items_quiz(cliente, apoyo, 6)
+    r = cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(apoyo),
                      json={"respuestas": [{"item_id": i["id"], "indice_elegido": i["indice_correcta"],
                                            "seguro": False} for i in items]}).json()
     assert r["puntos"] == len(items) * 25
     assert r["bono_calibrado"] is False, "sin ningún 'Seguro' no hay calibrado que premiar"
 
 
-def test_calibre_un_solo_seguro_fallado_rompe_el_bono(cliente, docente):
-    mod, items = _items_quiz(cliente, docente, 3)
+def test_calibre_un_solo_seguro_fallado_rompe_el_bono(cliente, apoyo):
+    mod, items = _items_quiz(cliente, apoyo, 7)
     respuestas = []
     for n, i in enumerate(items):
         malo = n == 0
         respuestas.append({"item_id": i["id"],
                            "indice_elegido": (i["indice_correcta"] + 1) % 4 if malo else i["indice_correcta"],
                            "seguro": True})
-    r = cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(docente),
+    r = cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(apoyo),
                      json={"respuestas": respuestas}).json()
     assert r["seguros"] == len(items) and r["seguros_acertados"] == len(items) - 1
     assert r["bono_calibrado"] is False
 
 
-def test_calibre_es_ludico_y_no_toca_el_acreditable(cliente, docente):
-    antes = cliente.get("/mi/estado", headers=_cab(docente)).json()
-    mod, items = _items_quiz(cliente, docente, 0)
-    cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(docente),
+def test_calibre_es_ludico_y_no_toca_el_acreditable(cliente, apoyo):
+    antes = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    mod, items = _items_quiz(cliente, apoyo, 8)
+    cliente.post(f"/modulos/{mod['id']}/calibre/resultado", headers=_cab(apoyo),
                  json={"respuestas": [{"item_id": i["id"], "indice_elegido": i["indice_correcta"],
                                        "seguro": True} for i in items]})
-    despues = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    despues = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
     assert despues["xp_acreditable"] == antes["xp_acreditable"]
     assert despues["escalon"] == antes["escalon"]
     assert despues["insignias"] == antes["insignias"]
 
 
-def test_calibre_no_se_juega_el_modulo_de_otro_cargo(cliente, docente, rector):
-    ruta_rector = cliente.get("/mi/ruta", headers=_cab(rector)).json()
+def test_calibre_no_se_juega_el_modulo_de_otro_cargo(cliente, apoyo, direccion):
+    ruta_direccion = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
     ajeno = cliente.get(
-        f"/bloques-ruta/{ruta_rector[0]['bloque_ruta_id']}/modulos", headers=_cab(rector)
+        f"/bloques-ruta/{ruta_direccion[0]['bloque_ruta_id']}/modulos", headers=_cab(direccion)
     ).json()[0]
-    r = cliente.post(f"/modulos/{ajeno['id']}/calibre/resultado", headers=_cab(docente),
+    r = cliente.post(f"/modulos/{ajeno['id']}/calibre/resultado", headers=_cab(apoyo),
                      json={"respuestas": []})
     assert r.status_code == 404
 
 
 # ------------------------------------------- tope de ranking (ratificado)
-def test_el_ranking_suma_ludico_solo_hasta_el_acreditable(cliente, docente):
+def test_el_ranking_suma_ludico_solo_hasta_el_acreditable(cliente, apoyo):
     """«Jugar puede duplicar tu posición, nunca reemplazar el recorrido.»"""
-    e = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    e = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
     assert e["xp_ranking"] == e["xp_acreditable"] + min(e["xp_ludico"], e["xp_acreditable"])
     assert e["xp_ranking"] <= 2 * e["xp_acreditable"]
 
 
-def test_quien_no_avanza_no_escala_jugando(cliente, rector):
+def test_quien_no_avanza_no_escala_jugando(cliente, direccion):
     """Con XP acreditable en cero, todo el XP lúdico aporta cero al ranking."""
-    fila = [f for f in cliente.get("/ranking", headers=_cab(rector)).json()
+    fila = [f for f in cliente.get("/ranking", headers=_cab(direccion)).json()
             if f["xp_acreditable"] == 0]
     for f in fila:
         assert f["xp_ranking"] == 0, "sin recorrido, jugar no da posición"
 
 
 # ------------------------------------------- B2 · Mesa de comité (Camino B)
-def test_la_mesa_reparte_cartas_sin_revelar_la_bandeja(cliente, docente):
-    m = cliente.get("/juegos/mesa", headers=_cab(docente)).json()
+def test_la_mesa_reparte_cartas_sin_revelar_la_bandeja(cliente, apoyo):
+    m = cliente.get("/juegos/mesa", headers=_cab(apoyo)).json()
     assert len(m["bandejas"]) == 5
     assert len(m["cartas"]) == 6
     for c in m["cartas"]:
@@ -582,25 +636,25 @@ def test_la_mesa_reparte_cartas_sin_revelar_la_bandeja(cliente, docente):
         assert len(c["texto"]) > 20, "la afirmación tiene que entenderse sola"
 
 
-def test_la_mesa_busca_variedad_de_dimensiones(cliente, docente):
+def test_la_mesa_busca_variedad_de_dimensiones(cliente, apoyo):
     """Una mesa casi monodimensional se resuelve por descarte y deja de ser interesante."""
-    m = cliente.get("/juegos/mesa", headers=_cab(docente)).json()
-    r = cliente.post("/juegos/mesa/resultado", headers=_cab(docente),
+    m = cliente.get("/juegos/mesa", headers=_cab(apoyo)).json()
+    r = cliente.post("/juegos/mesa/resultado", headers=_cab(apoyo),
                      json={"colocaciones": [{"item_id": c["item_id"], "dimension": "GESTION"}
                                             for c in m["cartas"]]}).json()
     dims = {x["dimension_correcta"] for x in r["revelacion"]}
     assert len(dims) >= 4, f"solo {len(dims)} dimensiones en la mesa"
 
 
-def test_cerrar_la_mesa_perfecta_da_el_bono(cliente, docente):
-    m = cliente.get("/juegos/mesa", headers=_cab(docente)).json()
+def test_cerrar_la_mesa_perfecta_da_el_bono(cliente, apoyo):
+    m = cliente.get("/juegos/mesa", headers=_cab(apoyo)).json()
     # Se cierra mal a propósito para conocer la verdad, y se vuelve a armar bien.
-    espia = cliente.post("/juegos/mesa/resultado", headers=_cab(docente),
+    espia = cliente.post("/juegos/mesa/resultado", headers=_cab(apoyo),
                          json={"colocaciones": [{"item_id": c["item_id"], "dimension": "ICI"}
                                                 for c in m["cartas"]]}).json()
     correcto = {x["item_id"]: x["dimension_correcta"] for x in espia["revelacion"]}
 
-    r = cliente.post("/juegos/mesa/resultado", headers=_cab(docente),
+    r = cliente.post("/juegos/mesa/resultado", headers=_cab(apoyo),
                      json={"colocaciones": [{"item_id": k, "dimension": v}
                                             for k, v in correcto.items()]}).json()
     assert r["aciertos"] == r["total"]
@@ -608,9 +662,9 @@ def test_cerrar_la_mesa_perfecta_da_el_bono(cliente, docente):
     assert r["puntos"] == r["total"] * 40 + 80
 
 
-def test_la_revelacion_dice_donde_iba_cada_carta(cliente, docente):
-    m = cliente.get("/juegos/mesa", headers=_cab(docente)).json()
-    r = cliente.post("/juegos/mesa/resultado", headers=_cab(docente),
+def test_la_revelacion_dice_donde_iba_cada_carta(cliente, apoyo):
+    m = cliente.get("/juegos/mesa", headers=_cab(apoyo)).json()
+    r = cliente.post("/juegos/mesa/resultado", headers=_cab(apoyo),
                      json={"colocaciones": [{"item_id": c["item_id"], "dimension": "VCM"}
                                             for c in m["cartas"]]}).json()
     for x in r["revelacion"]:
@@ -620,11 +674,11 @@ def test_la_revelacion_dice_donde_iba_cada_carta(cliente, docente):
         assert x["acerto"] == (x["dimension_correcta"] == "VCM")
 
 
-def test_la_mesa_solo_usa_contenido_de_la_propia_ruta(cliente, docente, rector):
+def test_la_mesa_solo_usa_contenido_de_la_propia_ruta(cliente, apoyo, direccion):
     """I-10 también rige para los juegos."""
-    mia = cliente.get("/juegos/mesa", headers=_cab(docente)).json()
-    ajena = cliente.get("/juegos/mesa", headers=_cab(rector)).json()
-    r = cliente.post("/juegos/mesa/resultado", headers=_cab(docente),
+    mia = cliente.get("/juegos/mesa", headers=_cab(apoyo)).json()
+    ajena = cliente.get("/juegos/mesa", headers=_cab(direccion)).json()
+    r = cliente.post("/juegos/mesa/resultado", headers=_cab(apoyo),
                      json={"colocaciones": [{"item_id": c["item_id"], "dimension": "GESTION"}
                                             for c in ajena["cartas"]]}).json()
     # Ninguna carta del Rector es válida en la mesa del Docente salvo que compartan bloque.
@@ -632,13 +686,91 @@ def test_la_mesa_solo_usa_contenido_de_la_propia_ruta(cliente, docente, rector):
     assert {c["item_id"] for c in mia["cartas"]} != {c["item_id"] for c in ajena["cartas"]}
 
 
-def test_la_mesa_es_ludica_y_no_toca_el_acreditable(cliente, docente):
-    antes = cliente.get("/mi/estado", headers=_cab(docente)).json()
-    m = cliente.get("/juegos/mesa", headers=_cab(docente)).json()
-    cliente.post("/juegos/mesa/resultado", headers=_cab(docente),
+def test_la_mesa_es_ludica_y_no_toca_el_acreditable(cliente, apoyo):
+    antes = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    m = cliente.get("/juegos/mesa", headers=_cab(apoyo)).json()
+    cliente.post("/juegos/mesa/resultado", headers=_cab(apoyo),
                  json={"colocaciones": [{"item_id": c["item_id"], "dimension": "CALIDAD"}
                                         for c in m["cartas"]]})
-    despues = cliente.get("/mi/estado", headers=_cab(docente)).json()
+    despues = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
     assert despues["xp_acreditable"] == antes["xp_acreditable"]
     assert despues["escalon"] == antes["escalon"]
     assert despues["insignias"] == antes["insignias"]
+
+
+# ----------------------------------------- desafío aplicado (dimensión crítica)
+def test_el_desafio_no_entrega_la_clave_antes_de_decidir(cliente, direccion):
+    """Igual que el banco de la evaluación: lo que corrige no viaja al cliente."""
+    ruta = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
+    critico = next(b for b in ruta if b["es_critica"])
+    caso = cliente.get(
+        f"/bloques-ruta/{critico['bloque_ruta_id']}/desafio", headers=_cab(direccion)
+    ).json()
+
+    assert caso["rol_ficticio"] and caso["situacion"] and caso["datos"]
+    assert len(caso["decisiones"]) >= 2
+    for d in caso["decisiones"]:
+        assert "clave_correcta" not in d, "la respuesta no puede viajar antes de decidir"
+        assert d["opciones"], "decidir necesita opciones definidas"
+
+
+def test_el_desafio_es_requisito_de_la_evaluacion_reforzada(cliente, direccion):
+    """La secuencia se impone en el servidor, no solo en la pantalla."""
+    ruta = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
+    critico = next(b for b in ruta if b["es_critica"] and b["estado"] != "completo")
+    bid = critico["bloque_ruta_id"]
+
+    for m in cliente.get(f"/bloques-ruta/{bid}/modulos", headers=_cab(direccion)).json():
+        cliente.post(f"/modulos/{m['id']}/completar", headers=_cab(direccion))
+
+    r = cliente.post(f"/bloques-ruta/{bid}/intentos", headers=_cab(direccion))
+    assert r.status_code == 409 and "desafío" in r.json()["detail"]
+
+
+def test_el_desafio_da_xp_ludico_y_nunca_medalla(cliente, direccion):
+    """Resolverlo perfecto no acerca a nadie a una medalla ni mueve el escalón (S-04)."""
+    ruta = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
+    critico = next(b for b in ruta if b["es_critica"] and b["estado"] != "completo")
+    bid = critico["bloque_ruta_id"]
+
+    antes = cliente.get("/mi/estado", headers=_cab(direccion)).json()
+    caso = cliente.get(f"/bloques-ruta/{bid}/desafio", headers=_cab(direccion)).json()
+    r = cliente.post(
+        f"/bloques-ruta/{bid}/desafio/resultado", headers=_cab(direccion),
+        json={"respuestas": [{"decision_id": d["decision_id"],
+                              "respuesta": d["opciones"][0]["clave"]}
+                             for d in caso["decisiones"]]},
+    ).json()
+
+    assert r["total"] == len(caso["decisiones"])
+    assert all("clave_correcta" in x for x in r["revelacion"]), "al cerrar sí se revela"
+
+    despues = cliente.get("/mi/estado", headers=_cab(direccion)).json()
+    assert despues["xp_acreditable"] == antes["xp_acreditable"], "ni un punto acreditable"
+    assert despues["insignias"] == antes["insignias"], "ni una insignia"
+    assert despues["escalon"] == antes["escalon"], "ni un escalón"
+
+
+def test_reenviar_el_desafio_no_vuelve_a_pagar(cliente, direccion):
+    ruta = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
+    critico = next(b for b in ruta if b["es_critica"] and b["estado"] != "completo")
+    bid = critico["bloque_ruta_id"]
+    caso = cliente.get(f"/bloques-ruta/{bid}/desafio", headers=_cab(direccion)).json()
+    cuerpo = {"respuestas": [{"decision_id": d["decision_id"],
+                              "respuesta": d["opciones"][0]["clave"]}
+                             for d in caso["decisiones"]]}
+
+    cliente.post(f"/bloques-ruta/{bid}/desafio/resultado", headers=_cab(direccion), json=cuerpo)
+    otra = cliente.post(
+        f"/bloques-ruta/{bid}/desafio/resultado", headers=_cab(direccion), json=cuerpo
+    ).json()
+    assert otra["ya_resuelto"] is True and otra["xp_otorgado"] == 0
+
+
+def test_el_desafio_de_otro_rol_no_se_abre(cliente, apoyo, direccion):
+    ruta_ajena = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
+    critico = next(b for b in ruta_ajena if b["es_critica"])
+    r = cliente.get(
+        f"/bloques-ruta/{critico['bloque_ruta_id']}/desafio", headers=_cab(apoyo)
+    )
+    assert r.status_code == 404

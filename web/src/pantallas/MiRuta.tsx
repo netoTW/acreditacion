@@ -1,5 +1,5 @@
 import type { BloqueDeRuta, Yo } from "../api";
-import { MapaRuta } from "../componentes/MapaRuta";
+import { MapaRuta, pct } from "../componentes/MapaRuta";
 import { Marco } from "../componentes/Marco";
 import { ESCALERA, progresoDeEscalon } from "../componentes/Sidebar";
 
@@ -16,6 +16,7 @@ export function MiRuta({ yo, bloques, onAbrirBloque, onIrA, onSalir }: Props) {
   const enCurso = bloques.find((b) => b.estado === "disponible" || b.estado === "en_curso");
   const { actual } = progresoDeEscalon(yo.xp_acreditable);
   const hayPrueba = bloques.some((b) => b.es_contenido_prueba);
+  const criticas = bloques.filter((b) => b.es_critica).length;
 
   return (
     <Marco
@@ -33,9 +34,39 @@ export function MiRuta({ yo, bloques, onAbrirBloque, onIrA, onSalir }: Props) {
           <div className="eyebrow">Tu recorrido · {bloques.length} dimensiones de evaluación</div>
           <h1>Mi Ruta de Acreditación</h1>
           <p>
-            Cada bloque es una dimensión del modelo de evaluación, al nivel de estándar que
-            le corresponde a tu cargo, y está anclado a un hito real del proceso.
+            Recorres las cinco dimensiones —la acreditación es de todos—, pero no todas
+            pesan igual en tu rol. Las dos de mayor impacto son tu <b>ruta crítica</b>:
+            exigen más y su medalla es de otro rango.
           </p>
+        </div>
+
+        {/* La distribución del rol, que es el dato nuevo de AIEP. Va arriba y completa:
+            es lo que explica por qué dos personas ven rutas distintas. */}
+        <div className="distribucion">
+          <div className="dist-head">
+            <span className="eyebrow">Impacto de tu rol por dimensión</span>
+            <span className="dist-total">suma 100%</span>
+          </div>
+          <div className="dist-barras">
+            {[...bloques]
+              .sort((a, b) => Number(b.peso_ranking) - Number(a.peso_ranking))
+              .map((b) => (
+                <div key={b.bloque_ruta_id} className={`dist-fila ${b.es_critica ? "critica" : ""}`}>
+                  <span className="dist-nombre">
+                    {b.dimension_nombre}
+                    {b.es_critica && <span className="marca-critica">ruta crítica</span>}
+                  </span>
+                  <span className="dist-barra">
+                    <span style={{ width: `${Number(b.peso_ranking) * 100 * 2.4}%` }} />
+                  </span>
+                  <span className="dist-pct">{pct(b)}</span>
+                  <span className="dist-nivel">
+                    nivel {b.nivel_estandar} · {b.es_critica ? "85%" : "80%"} ·{" "}
+                    {b.medalla_tipo === "gold" ? "oro" : "plata"}
+                  </span>
+                </div>
+              ))}
+          </div>
         </div>
 
         <div className="ruta-shell">
@@ -80,7 +111,7 @@ export function MiRuta({ yo, bloques, onAbrirBloque, onIrA, onSalir }: Props) {
               {yo.insignias} <span style={{ fontSize: 16, color: "var(--niebla)" }}>/ {bloques.length}</span>
             </div>
             <div className="d">
-              {yo.xp_acreditable.toLocaleString("es-CL")} XP acreditable · escalón {actual.nombre}
+              {criticas} de oro en juego · {yo.xp_acreditable.toLocaleString("es-CL")} XP · {actual.nombre}
             </div>
           </div>
           <div className="card">

@@ -40,11 +40,16 @@ class ModulosPendientes(Exception):
     """La evaluación cierra el bloque: se rinde después de recorrerlo, no antes."""
 
 
+class DesafioPendiente(Exception):
+    """En la dimensión crítica, el desafío aplicado es requisito para rendir."""
+
+
 def abrir_intento(conn, *, colaborador_id: UUID, bloque_ruta_id: UUID) -> UUID:
     """Abre un intento. Si ya hay uno abierto y vigente, lo retoma (S-14)."""
     ev = conn.execute(
         """
-        SELECT e.id, e.max_reintentos, e.minutos_expiracion, e.n_items_por_intento
+        SELECT e.id, e.max_reintentos, e.minutos_expiracion, e.n_items_por_intento,
+               br.es_critica
           FROM bloque_ruta br
           JOIN evaluacion e ON e.bloque_contenido_id = br.bloque_contenido_id
          WHERE br.id = %s
@@ -53,7 +58,7 @@ def abrir_intento(conn, *, colaborador_id: UUID, bloque_ruta_id: UUID) -> UUID:
     ).fetchone()
     if ev is None:
         raise LookupError("el bloque de ruta no tiene evaluación asociada")
-    evaluacion_id, max_reintentos, minutos_exp, n_items = ev
+    evaluacion_id, max_reintentos, minutos_exp, n_items, es_critica = ev
 
     # La secuencia formativa se impone en el servidor, no solo en la pantalla: si
     # solo la cuidara la UI, bastaría con llamar al endpoint para saltarse el bloque.
@@ -63,6 +68,15 @@ def abrir_intento(conn, *, colaborador_id: UUID, bloque_ruta_id: UUID) -> UUID:
     if total and completos < total:
         raise ModulosPendientes(
             f"faltan {total - completos} módulos por ver antes de rendir la evaluación"
+        )
+
+    # La exigencia extra de la dimensión crítica: el desafío aplicado va ANTES, y
+    # también se verifica acá y no solo en la pantalla. Resolverlo no aprueba nada
+    # —no da medalla ni XP acreditable—; solo abre la puerta de la evaluación.
+    if es_critica and not _desafio_resuelto(conn, colaborador_id, bloque_ruta_id):
+        raise DesafioPendiente(
+            "esta dimensión es crítica para tu rol: el desafío aplicado va antes de "
+            "la evaluación reforzada"
         )
 
     abierto = conn.execute(
@@ -159,8 +173,8 @@ def cerrar_intento(conn, *, intento_id: UUID) -> ResultadoIntento:
         """
         SELECT ie.estado, ie.colaborador_id, ie.bloque_ruta_id, ie.evaluacion_id,
                ie.items_servidos, ie.puntaje, ie.aprobado, ie.numero_intento,
-               e.umbral_aprobacion, e.max_reintentos,
-               br.bloque_contenido_id, bc.nivel_estandar
+               COALESCE(br.umbral_aprobacion, e.umbral_aprobacion), e.max_reintentos,
+               br.bloque_contenido_id, bc.nivel_estandar, br.es_critica
           FROM intento_evaluacion ie
           JOIN evaluacion e   ON e.id = ie.evaluacion_id
           JOIN bloque_ruta br ON br.id = ie.bloque_ruta_id
@@ -172,9 +186,11 @@ def cerrar_intento(conn, *, intento_id: UUID) -> ResultadoIntento:
     if fila is None:
         raise LookupError("intento inexistente")
 
+    # El umbral es el EFECTIVO: el reforzado de la ruta si la dimensión es crítica,
+    # el del contenido si no. La base verifica el veredicto contra este mismo valor.
     (estado_i, colaborador_id, bloque_ruta_id, _evaluacion_id, items_servidos,
      puntaje_prev, aprobado_prev, numero_intento, umbral, max_reintentos,
-     bloque_contenido_id, nivel_estandar) = fila
+     bloque_contenido_id, nivel_estandar, es_critica) = fila
 
     # --- ya cerrado: se devuelve lo mismo, sin volver a otorgar nada ---
     if estado_i != "abierto":
@@ -227,9 +243,13 @@ def cerrar_intento(conn, *, intento_id: UUID) -> ResultadoIntento:
         return ResultadoIntento(intento_id, puntaje, False, None, 0, restantes)
 
     # --- aprobado: acá, y solo acá, nace una insignia ---
+    # El rango lo decide la criticidad de la dimensión EN ESTA RUTA. La gold no la
+    # reparte el rol: la reparte haber pasado por el desafío y rendido al 85%. Si
+    # esta línea se equivocara, el trigger de 006 rechaza la insignia igual.
+    rango = "gold" if es_critica else "silver"
     medalla = conn.execute(
-        "SELECT id, xp FROM definicion_medalla WHERE bloque_contenido_id = %s",
-        (bloque_contenido_id,),
+        "SELECT id, xp FROM definicion_medalla WHERE bloque_contenido_id = %s AND tipo = %s",
+        (bloque_contenido_id, rango),
     ).fetchone()
 
     insignia_id = None
@@ -288,6 +308,14 @@ def _expirar(conn, intento_id: UUID) -> None:
         """,
         (intento_id,),
     )
+
+
+def _desafio_resuelto(conn, colaborador_id: UUID, bloque_ruta_id: UUID) -> bool:
+    return conn.execute(
+        """SELECT 1 FROM resolucion_desafio
+            WHERE colaborador_id = %s AND bloque_ruta_id = %s""",
+        (colaborador_id, bloque_ruta_id),
+    ).fetchone() is not None
 
 
 def _insignia_de(conn, intento_id: UUID):

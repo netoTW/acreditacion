@@ -47,6 +47,10 @@ function trazo(ps: Punto[], w: number, h: number): string {
 const W = 1000;
 const H = 430;
 
+/** El peso llega como `numeric` de PostgreSQL, o sea string. Se muestra como 35%. */
+export const pct = (b: Pick<BloqueDeRuta, "peso_ranking">) =>
+  `${Math.round(Number(b.peso_ranking) * 100)}%`;
+
 export function MapaRuta({ bloques, onAbrir }: Props) {
   const total = bloques.length + 1;                 // + graduación
   const puntos = posiciones(total);
@@ -88,21 +92,33 @@ export function MapaRuta({ bloques, onAbrir }: Props) {
       {bloques.map((b, i) => (
         <div
           key={b.bloque_ruta_id}
-          className={`nodo ${claseDe(b)}`}
+          className={`nodo ${claseDe(b)} ${b.es_critica ? "critico" : ""}`}
           style={{ left: `${puntos[i].x}%`, top: `${puntos[i].y}%` }}
         >
           <button
             className="nodo-dot"
             onClick={() => onAbrir?.(b)}
-            aria-label={`Bloque ${b.orden}: ${b.dimension_nombre}, nivel ${b.nivel_estandar}, ${b.estado}`}
+            aria-label={
+              `Bloque ${b.orden}: ${b.dimension_nombre}, ${pct(b)} de tu rol, ` +
+              `nivel ${b.nivel_estandar}, ${b.es_critica ? "ruta crítica" : "dimensión estándar"}, ${b.estado}`
+            }
           >
             {b.orden}
             <span className="nodo-nivel">N{b.nivel_estandar}</span>
-            {b.obtenida > 0 && <span className="medalla-mini" aria-hidden="true">🏅</span>}
+            {b.obtenida > 0 && (
+              <span className={`medalla-mini ${b.medalla_tipo ?? ""}`} aria-hidden="true">
+                {b.medalla_tipo === "gold" ? "🥇" : "🏅"}
+              </span>
+            )}
           </button>
-          <div className="nodo-label">{b.dimension_nombre}</div>
+          <div className="nodo-label">
+            {b.dimension_nombre}
+            {/* La marca de ruta crítica va en palabra, no solo en color ni en un punto rojo. */}
+            {b.es_critica && <span className="marca-critica">crítica</span>}
+          </div>
           {/* El estado va en texto además de en color: no todo el mundo distingue menta de carmín. */}
           <div className="nodo-sub">
+            <b>{pct(b)}</b> ·{" "}
             {b.estado === "completo" ? "completo"
               : b.estado === "disponible" ? "disponible"
               : b.estado === "en_curso" ? "en curso"

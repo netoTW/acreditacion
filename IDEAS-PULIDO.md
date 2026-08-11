@@ -33,3 +33,12 @@
 
 - Cuando entre el corpus real de AIEP, revisar que el aviso de `es_contenido_prueba` deje
   de mostrarse y que el validador siga exigiendo lo mismo al material oficial.
+
+## Desafío aplicado
+
+- **Los distractores se repiten entre decisiones.** La decisión 3 usa como opciones
+  incorrectas las mismas que la decisión 1, porque ambas salen del concepto más
+  exigente del bloque. Se nota al jugarlo. Arreglo: que la decisión 3 tome sus
+  distractores de un concepto distinto al de la decisión 1, o del banco de acciones
+  incorrectas de la dimensión completa. Verificado con el director en la Fase 1;
+  no bloquea.

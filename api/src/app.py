@@ -21,8 +21,10 @@ from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
 from identidad import SesionInvalida, proveedor_activo, verificar
+from motor.desafio import NoCritica, resolver_desafio, ver_desafio
 from motor.evaluacion import (
-    ModulosPendientes, SinReintentos, abrir_intento, cerrar_intento, responder,
+    DesafioPendiente, ModulosPendientes, SinReintentos, abrir_intento,
+    cerrar_intento, responder,
 )
 from motor.eventos import estado as leer_estado
 from motor.progreso import completar_modulo
@@ -280,27 +282,39 @@ def comites(yo: UUID = Depends(colaborador_actual)):
 @app.get("/mi/ruta", tags=["mi ruta"])
 def mi_ruta(yo: UUID = Depends(colaborador_actual)):
     """
-    Mis 5 bloques, uno por dimensión, cada uno al nivel que me exige mi cargo y
+    Mis 5 bloques, uno por dimensión, cada uno al nivel que me exige mi rol y
     anclado a un hito real del proceso.
+
+    Desde el modelo de AIEP cada bloque viaja además con su **peso** en el rol, si
+    es **ruta crítica**, el umbral que le corresponde y el **rango de medalla** que
+    está en juego. La medalla se elige por criticidad: un bloque define silver y
+    gold, y acá se muestra la que efectivamente se puede ganar en esta ruta.
     """
     datos = filas(
         """SELECT br.id AS bloque_ruta_id, br.orden, br.estado,
                   d.codigo AS dimension, d.nombre_oficial AS dimension_nombre,
                   bc.nivel_estandar, bc.titulo, bc.es_contenido_prueba,
+                  br.es_critica, br.peso_ranking,
+                  COALESCE(br.umbral_aprobacion, e.umbral_aprobacion) AS umbral,
                   h.codigo AS hito, h.periodo_texto, h.titulo AS hito_titulo,
-                  dm.nombre AS medalla, dm.xp AS medalla_xp,
+                  dm.nombre AS medalla, dm.tipo AS medalla_tipo, dm.xp AS medalla_xp,
                   (SELECT count(*) FROM modulo m WHERE m.bloque_contenido_id = bc.id) AS modulos,
                   (SELECT count(*) FROM insignia i
-                     WHERE i.colaborador_id = %s AND i.definicion_medalla_id = dm.id) AS obtenida
+                     WHERE i.colaborador_id = %s AND i.definicion_medalla_id = dm.id) AS obtenida,
+                  (SELECT count(*) FROM resolucion_desafio rd
+                     WHERE rd.colaborador_id = %s AND rd.bloque_ruta_id = br.id) AS desafio_resuelto
              FROM bloque_ruta br
              JOIN ruta r ON r.id = br.ruta_id
              JOIN bloque_contenido bc ON bc.id = br.bloque_contenido_id
              JOIN dimension d ON d.id = bc.dimension_id
+             LEFT JOIN evaluacion e ON e.bloque_contenido_id = bc.id
              LEFT JOIN hito h ON h.id = br.hito_id
-             LEFT JOIN definicion_medalla dm ON dm.bloque_contenido_id = bc.id
+             LEFT JOIN definicion_medalla dm
+                    ON dm.bloque_contenido_id = bc.id
+                   AND dm.tipo = CASE WHEN br.es_critica THEN 'gold' ELSE 'silver' END
             WHERE r.colaborador_id = %s
             ORDER BY br.orden""",
-        (yo, yo),
+        (yo, yo, yo),
     )
     if not datos:
         raise HTTPException(404, "todavía no tienes ruta generada")
@@ -376,8 +390,9 @@ def bloque(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
     El bloque completo: cabecera, módulos con su estado, la evaluación y la medalla.
 
     `evaluacion_disponible` es lo que ordena el recorrido: la evaluación se abre
-    cuando están vistos todos los módulos. No es un candado de integridad —esa la
-    impone la base—, es la secuencia formativa.
+    cuando están vistos todos los módulos —y, en la dimensión crítica, también
+    cuando está resuelto el desafío aplicado. No es un candado de integridad —esa
+    la impone la base—, es la secuencia formativa.
     """
     _bloque_propio(bloque_ruta_id, yo)
 
@@ -385,32 +400,42 @@ def bloque(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
         """SELECT br.id AS bloque_ruta_id, br.orden, br.estado,
                   d.codigo AS dimension, d.nombre_oficial AS dimension_nombre,
                   bc.nivel_estandar, bc.titulo, bc.es_contenido_prueba,
+                  br.es_critica, br.peso_ranking,
                   h.codigo AS hito, h.periodo_texto, h.titulo AS hito_titulo,
                   dm.id AS medalla_id, dm.nombre AS medalla, dm.tipo AS medalla_tipo,
                   dm.xp AS medalla_xp,
-                  ev.umbral_aprobacion, ev.n_items_por_intento, ev.max_reintentos,
+                  COALESCE(br.umbral_aprobacion, ev.umbral_aprobacion) AS umbral_aprobacion,
+                  ev.n_items_por_intento, ev.max_reintentos,
                   (SELECT count(*) FROM insignia i
                     WHERE i.colaborador_id = %s AND i.definicion_medalla_id = dm.id) AS obtenida,
                   (SELECT count(*) FROM intento_evaluacion ie
-                    WHERE ie.bloque_ruta_id = br.id) AS intentos_usados
+                    WHERE ie.bloque_ruta_id = br.id) AS intentos_usados,
+                  (SELECT count(*) FROM resolucion_desafio rd
+                    WHERE rd.colaborador_id = %s AND rd.bloque_ruta_id = br.id) AS desafio_resuelto
              FROM bloque_ruta br
              JOIN bloque_contenido bc ON bc.id = br.bloque_contenido_id
              JOIN dimension d ON d.id = bc.dimension_id
              LEFT JOIN hito h ON h.id = br.hito_id
-             LEFT JOIN definicion_medalla dm ON dm.bloque_contenido_id = bc.id
+             LEFT JOIN definicion_medalla dm
+                    ON dm.bloque_contenido_id = bc.id
+                   AND dm.tipo = CASE WHEN br.es_critica THEN 'gold' ELSE 'silver' END
              LEFT JOIN evaluacion ev ON ev.bloque_contenido_id = bc.id
             WHERE br.id = %s""",
-        (yo, bloque_ruta_id),
+        (yo, yo, bloque_ruta_id),
     )[0]
 
     modulos = _modulos_del_bloque(bloque_ruta_id, yo)
     completos = sum(1 for m in modulos if m["completado"])
+    falta_desafio = bool(cabecera["es_critica"]) and not cabecera["desafio_resuelto"]
 
     return {
         **cabecera,
         "modulos": modulos,
         "modulos_completos": completos,
-        "evaluacion_disponible": completos == len(modulos) and len(modulos) > 0,
+        "desafio_pendiente": falta_desafio,
+        "evaluacion_disponible": (
+            completos == len(modulos) and len(modulos) > 0 and not falta_desafio
+        ),
     }
 
 
@@ -661,6 +686,66 @@ def clave_de_respuestas(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_act
     )
 
 
+# ======================================================== desafío aplicado
+class RespuestaDecision(BaseModel):
+    decision_id: UUID
+    # La forma depende del tipo: "b" | ["a","c"] | {"a":"sostiene"}.
+    respuesta: object
+
+
+class DesafioResuelto(BaseModel):
+    respuestas: list[RespuestaDecision] = Field(min_length=1)
+
+
+@app.get("/bloques-ruta/{bloque_ruta_id}/desafio", tags=["desafío aplicado"])
+def desafio(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
+    """
+    El caso aplicado de una dimensión crítica, **sin las respuestas correctas**.
+
+    Solo existe donde el rol tiene ruta crítica. En una dimensión estándar
+    responde 409: no es que falte contenido, es que ese bloque no lleva desafío.
+    """
+    _bloque_propio(bloque_ruta_id, yo)
+    with pool.connection() as conn:
+        try:
+            return ver_desafio(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id)
+        except NoCritica as e:
+            raise HTTPException(409, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+
+
+@app.post("/bloques-ruta/{bloque_ruta_id}/desafio/resultado", tags=["desafío aplicado"])
+def resultado_desafio(bloque_ruta_id: UUID, cuerpo: DesafioResuelto,
+                      yo: UUID = Depends(colaborador_actual)):
+    """
+    Corrige el desafío **en el servidor** y abre la evaluación reforzada.
+
+    Da XP lúdico y nada más: ni medalla ni XP acreditable, ni siquiera con las
+    tres decisiones correctas. La medalla gold sigue naciendo únicamente del
+    intento de evaluación aprobado al 85%.
+    """
+    _bloque_propio(bloque_ruta_id, yo)
+    with pool.connection() as conn:
+        try:
+            r = resolver_desafio(
+                conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id,
+                respuestas=[x.model_dump() for x in cuerpo.respuestas],
+            )
+        except NoCritica as e:
+            raise HTTPException(409, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+    return {
+        "total": r.total,
+        "aciertos": r.aciertos,
+        "perfecto": r.perfecto,
+        "xp_otorgado": r.xp_otorgado,
+        "ya_resuelto": r.ya_resuelto,
+        "revelacion": r.revelacion,
+    }
+
+
 @app.post("/bloques-ruta/{bloque_ruta_id}/intentos", tags=["evaluación"])
 def crear_intento(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
     """Abre un intento y baraja los ítems. Si ya hay uno abierto y vigente, lo retoma (S-14)."""
@@ -671,6 +756,8 @@ def crear_intento(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
         except SinReintentos as e:
             raise HTTPException(409, str(e))
         except ModulosPendientes as e:
+            raise HTTPException(409, str(e))
+        except DesafioPendiente as e:
             raise HTTPException(409, str(e))
         except LookupError as e:
             raise HTTPException(404, str(e))

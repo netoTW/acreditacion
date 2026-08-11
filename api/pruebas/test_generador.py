@@ -13,7 +13,8 @@ import pytest
 from generador import generar, generar_todo, validar
 from generador.conocimiento import DIMENSIONES
 
-MODULOS_ESPERADOS = {1: 2, 2: 3, 3: 4}
+MODULOS_POR_BLOQUE = 2                      # igual en las 5 dimensiones y los 3 niveles
+ITEMS_QUIZ_ESPERADOS = {1: 3, 2: 5, 3: 7}   # la profundidad la fija el nivel
 BANCO_ESPERADO = {1: 18, 2: 24, 3: 30}      # 6 / 8 / 10 conceptos × 3 ítems
 
 
@@ -45,17 +46,34 @@ def test_todo_va_marcado_como_contenido_de_prueba(bloques):
             assert c["es_contenido_prueba"] is True
 
 
-def test_los_modulos_escalan_con_el_nivel(bloques):
+def test_la_estructura_es_la_misma_en_todas_las_dimensiones(bloques):
+    """
+    El modelo de AIEP fija una sola forma: 2 quiz + 1 juego + evaluación.
+
+    Antes la cantidad de módulos crecía con el nivel (2/3/4). Ya no: lo que sube
+    con el nivel es cuánto trae cada módulo, no cuántos hay.
+    """
     for b in bloques:
-        assert len(b["modulos"]) == MODULOS_ESPERADOS[b["nivel_estandar"]]
+        assert len(b["modulos"]) == MODULOS_POR_BLOQUE, b["dimension"]
 
 
-def test_el_anidamiento_de_estandares_esta_completo(bloques):
-    """El nivel 3 incluye al 2 y el 2 al 1: los tramos de origen deben estar todos."""
+def test_la_profundidad_escala_con_el_nivel(bloques):
+    """Donde el rol impacta más, el bloque pesa más: es lo que hace real la distribución."""
     for b in bloques:
-        nivel = b["nivel_estandar"]
-        origenes = {m["nivel_estandar_origen"] for m in b["modulos"]}
-        assert set(range(1, nivel + 1)) <= origenes, f"{b['dimension']} N{nivel}: {origenes}"
+        esperado = ITEMS_QUIZ_ESPERADOS[b["nivel_estandar"]]
+        for m in b["modulos"]:
+            assert len(m["quiz_formativo"]) == esperado, f"{b['dimension']} N{b['nivel_estandar']}"
+
+
+def test_el_anidamiento_de_estandares_sigue_expresado(bloques):
+    """
+    El nivel 3 sigue incluyendo al 2 y al 1: con 2 módulos, el anidamiento se ve en
+    que el primero cubre los fundamentos y el último llega al nivel del rol.
+    """
+    for b in bloques:
+        origenes = [m["nivel_estandar_origen"] for m in sorted(b["modulos"], key=lambda m: m["orden"])]
+        assert origenes[0] == 1, f"{b['dimension']}: el primer módulo no parte en fundamentos"
+        assert origenes[-1] == b["nivel_estandar"], f"{b['dimension']}: no llega al nivel del bloque"
 
 
 def test_el_banco_crece_con_el_nivel(bloques):
@@ -184,7 +202,7 @@ def test_rechaza_alternativas_repetidas_dentro_de_un_item():
 
 def test_rechaza_xp_que_no_corresponde_al_nivel():
     b = _bloque_base()
-    b["medalla"]["xp"] = 999
+    b["medallas"][0]["xp"] = 999
     r = validar(b)
     assert not r.valido and any("XP" in e for e in r.errores)
 

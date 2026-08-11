@@ -9,6 +9,7 @@ type Props = {
   bloquesCompletos: number;
   onVolver: () => void;
   onAbrirModulo: (moduloId: string) => void;
+  onAbrirDesafio: () => void;
   onRendir: () => void;
   onSalir: () => void;
 };
@@ -65,6 +66,25 @@ export function Bloque(p: Props) {
             Se te exige el <b>nivel de estándar {b.nivel_estandar}</b>, que incluye los
             niveles anteriores.
           </p>
+
+          {/* Por qué este bloque exige lo que exige. Sin esto, el 85% y el desafío
+              parecen arbitrarios en vez de consecuencia del peso del rol. */}
+          <div className={`banda-exigencia ${b.es_critica ? "critica" : ""}`}>
+            {b.es_critica ? (
+              <>
+                <b>Ruta crítica de tu rol.</b> Esta dimensión pesa{" "}
+                <b>{Math.round(Number(b.peso_ranking) * 100)}%</b> de tu impacto, así que
+                lleva un <b>desafío aplicado</b> antes de la evaluación, se aprueba con{" "}
+                <b>85%</b> y su medalla es de <b>oro</b>.
+              </>
+            ) : (
+              <>
+                <b>Dimensión estándar.</b> Pesa{" "}
+                <b>{Math.round(Number(b.peso_ranking) * 100)}%</b> de tu rol: mismo
+                recorrido, aprobación al <b>80%</b> y medalla de <b>plata</b>.
+              </>
+            )}
+          </div>
         </div>
 
         <div className="bloque-layout">
@@ -99,6 +119,49 @@ export function Bloque(p: Props) {
               );
             })}
 
+            {/* El juego de la dimensión es Fase 2. Se muestra el hueco en vez de
+                ocultarlo: la estructura que AIEP definió tiene cuatro piezas y hay
+                que poder ver cuál falta. */}
+            <div className="mod-row">
+              <div className="mod-ico cerrado">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="2" y="7" width="20" height="12" rx="3" />
+                  <path d="M7 11v4M5 13h4M16 12h.01M18.5 15h.01" />
+                </svg>
+              </div>
+              <div className="mod-info">
+                <div className="t">Juego de {b.dimension_nombre}</div>
+                <div className="d">Cada dimensión lleva el suyo · se construye en la fase 2</div>
+              </div>
+              <div className="mod-status">en construcción</div>
+            </div>
+
+            {b.es_critica && (
+              <div className="mod-row">
+                <div className={`mod-ico ${b.desafio_pendiente ? "ahora" : "completo"}`}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    {b.desafio_pendiente ? ICONO.ahora : ICONO.completo}
+                  </svg>
+                </div>
+                <div className="mod-info">
+                  <div className="t">
+                    Desafío aplicado <span className="chip-critica">ruta crítica</span>
+                  </div>
+                  <div className="d">
+                    Un caso real con decisiones · requisito para rendir · da XP de juego,
+                    no acreditable
+                  </div>
+                </div>
+                {b.desafio_pendiente ? (
+                  <button className="btn btn-primary" onClick={p.onAbrirDesafio}>
+                    {b.modulos_completos === b.modulos.length ? "Entrar al caso" : "Ver el caso"}
+                  </button>
+                ) : (
+                  <button className="btn btn-ghost" onClick={p.onAbrirDesafio}>Revisar</button>
+                )}
+              </div>
+            )}
+
             <div className="mod-row">
               <div className={`mod-ico ${b.evaluacion_disponible ? "ahora" : "cerrado"}`}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -106,10 +169,12 @@ export function Bloque(p: Props) {
                 </svg>
               </div>
               <div className="mod-info">
-                <div className="t">Evaluación del bloque</div>
+                <div className="t">
+                  Evaluación {b.es_critica ? "reforzada" : "del bloque"}
+                </div>
                 <div className="d">
                   {b.n_items_por_intento} preguntas · aprobación{" "}
-                  {Math.round(Number(b.umbral_aprobacion) * 100)}% ·{" "}
+                  <b>{Math.round(Number(b.umbral_aprobacion) * 100)}%</b> ·{" "}
                   {(b.max_reintentos ?? 0) - b.intentos_usados} intentos disponibles
                 </div>
               </div>
@@ -119,21 +184,30 @@ export function Bloque(p: Props) {
                 <button className="btn btn-primary" onClick={p.onRendir}>Rendir</button>
               ) : (
                 <div className="mod-status">
-                  faltan {b.modulos.length - b.modulos_completos} módulos
+                  {b.modulos_completos < b.modulos.length
+                    ? `faltan ${b.modulos.length - b.modulos_completos} módulos`
+                    : "falta el desafío"}
                 </div>
               )}
             </div>
           </div>
 
           <div className="card reward-card">
-            <span className="pill oro">Recompensa del bloque</span>
+            <span className={`pill ${b.medalla_tipo === "gold" ? "oro" : "menta"}`}>
+              Medalla de {b.medalla_tipo === "gold" ? "oro" : "plata"}
+            </span>
             <div className="big-badge" aria-hidden="true">
               <svg viewBox="0 0 100 112" fill="none">
                 <path d="M50 4 92 24 V60 C92 84 73 100 50 108 C27 100 8 84 8 60 V24 Z"
-                  fill={b.obtenida ? "url(#oro)" : "#e8e2e5"} stroke={b.obtenida ? "#c98e10" : "#d5cdd1"} strokeWidth="2" />
+                  fill={b.obtenida ? (b.medalla_tipo === "gold" ? "url(#oro)" : "url(#plata)") : "#e8e2e5"}
+                  stroke={b.obtenida ? (b.medalla_tipo === "gold" ? "#c98e10" : "#9aa4ad") : "#d5cdd1"}
+                  strokeWidth="2" />
                 <defs>
                   <linearGradient id="oro" x1="0" y1="0" x2="1" y2="1">
                     <stop stopColor="#F4B740" /><stop offset="1" stopColor="#d99413" />
+                  </linearGradient>
+                  <linearGradient id="plata" x1="0" y1="0" x2="1" y2="1">
+                    <stop stopColor="#dfe6ec" /><stop offset="1" stopColor="#aab6c0" />
                   </linearGradient>
                 </defs>
                 <circle cx="50" cy="48" r="24" fill="#fff" opacity=".9" />
@@ -147,7 +221,10 @@ export function Bloque(p: Props) {
             <p className="reward-sub">
               {b.obtenida > 0
                 ? "Ya la tienes. La respalda tu intento aprobado."
-                : <>Aprueba la evaluación para sumar <b className="mono">{b.medalla_xp} XP</b> y abrir el bloque siguiente.</>}
+                : b.es_critica
+                  ? <>La de oro se <b>gana</b>: resolver el desafío y aprobar al 85% suma{" "}
+                     <b className="mono">{b.medalla_xp} XP</b>. No la reparte tu rol.</>
+                  : <>Aprueba la evaluación para sumar <b className="mono">{b.medalla_xp} XP</b> y abrir el bloque siguiente.</>}
             </p>
             <div className="side-stats">
               <div className="side-stat">

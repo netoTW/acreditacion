@@ -40,20 +40,20 @@ export function Ingreso({ onEntrar }: { onEntrar: () => void }) {
           </h1>
           <p className="ingreso-lead">
             Cada colaborador recorre las cinco dimensiones de evaluación al nivel de
-            exigencia que le pide su cargo, siguiendo los hitos reales del proceso.
+            exigencia que le pide su rol, con el peso que cada dimensión tiene para él.
           </p>
         </div>
         <div className="ingreso-stats">
           <div><div className="n">5</div><div className="l">Dimensiones</div></div>
           <div><div className="n">13</div><div className="l">Hitos 2026–2027</div></div>
-          <div><div className="n">6</div><div className="l">Cargos</div></div>
+          <div><div className="n">3</div><div className="l">Roles</div></div>
         </div>
       </div>
 
       <div className="ingreso-der">
         <div className="login-card">
           <h2>Entrar a tu ruta</h2>
-          <p className="sub">Elige con qué cargo quieres recorrer el sistema.</p>
+          <p className="sub">Elige con qué rol quieres recorrer el sistema.</p>
 
           {error && <div className="error" style={{ margin: "0 0 16px" }}>{error}</div>}
           {!gente && !error && <p className="cargando" style={{ padding: 0 }}>cargando…</p>}

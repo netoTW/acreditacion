@@ -42,9 +42,11 @@ def _ubicar_schema() -> Path:
 SCHEMA = json.loads(_ubicar_schema().read_text(encoding="utf-8"))
 
 DIMENSIONES_VALIDAS = {"GESTION", "DOCENCIA", "CALIDAD", "VCM", "ICI"}
-MODULOS_POR_NIVEL = {1: 2, 2: 3, 3: 4}
+MODULOS_POR_BLOQUE = 2                          # S-32 revisado: igual en las 5 dimensiones
 XP_MODULO = {1: 60, 2: 80, 3: 100}
 XP_MEDALLA = {1: 200, 2: 300, 3: 400}
+XP_MEDALLA_GOLD = {n: int(xp * 1.5) for n, xp in XP_MEDALLA.items()}
+RANGOS_ESPERADOS = {"silver", "gold"}
 
 # Detectar relleno en español pide cuidado: buscar "todo" o "pendiente" como
 # subcadena da falsos positivos dentro de "método" y de "independiente", que son
@@ -102,21 +104,37 @@ def validar(bloque: dict) -> Resultado:
     if bloque["es_contenido_prueba"] is not True:
         r.errores.append("es_contenido_prueba debe ser true en esta etapa")
 
-    # 3 — cantidad de módulos según nivel (S-32)
-    if len(modulos) != MODULOS_POR_NIVEL[nivel]:
+    # 3 — estructura idéntica en las cinco dimensiones (S-32 revisado)
+    if len(modulos) != MODULOS_POR_BLOQUE:
         r.errores.append(
-            f"un bloque de nivel {nivel} lleva {MODULOS_POR_NIVEL[nivel]} módulos, "
-            f"trae {len(modulos)}"
+            f"todo bloque lleva {MODULOS_POR_BLOQUE} módulos —la estructura es la misma "
+            f"en las cinco dimensiones—, y este trae {len(modulos)}"
         )
 
-    # 4 — el anidamiento de los estándares tiene que estar completo
-    origenes = {m["nivel_estandar_origen"] for m in modulos}
-    faltantes = set(range(1, nivel + 1)) - origenes
-    if faltantes:
-        r.errores.append(
-            f"el anidamiento está roto: faltan módulos de origen {sorted(faltantes)} "
-            f"(el nivel {nivel} debe incluir los tramos 1..{nivel})"
-        )
+    # 4 — el anidamiento sigue estando, ahora expresado en el reparto: el primer
+    #     módulo son los fundamentos y el último llega al nivel del rol.
+    if modulos:
+        por_orden = sorted(modulos, key=lambda m: m["orden"])
+        if por_orden[0]["nivel_estandar_origen"] != 1:
+            r.errores.append(
+                "el anidamiento está roto: el primer módulo debe cubrir el tramo 1 "
+                f"(fundamentos) y declara {por_orden[0]['nivel_estandar_origen']}"
+            )
+        if por_orden[-1]["nivel_estandar_origen"] != nivel:
+            r.errores.append(
+                f"el anidamiento está roto: el último módulo de un bloque de nivel "
+                f"{nivel} debe llegar a ese tramo y declara "
+                f"{por_orden[-1]['nivel_estandar_origen']}"
+            )
+
+    # 5 — profundidad: el quiz del bloque más exigente no puede ser igual de corto
+    #     que el del menos exigente, porque entonces el nivel no significa nada.
+    if len(modulos) == MODULOS_POR_BLOQUE and nivel == 3:
+        if any(len(m["quiz_formativo"]) < 5 for m in modulos):
+            r.errores.append(
+                "un bloque de nivel 3 con quices de menos de 5 ítems no expresa "
+                "mayor profundidad que uno de nivel 1"
+            )
 
     # 11 — dimensión del catálogo real
     if bloque["dimension"] not in DIMENSIONES_VALIDAS:
@@ -130,12 +148,33 @@ def validar(bloque: dict) -> Resultado:
             "con menos, barajar no produce pruebas distintas entre reintentos"
         )
 
-    # 13 — XP coherente con S-37
-    if bloque["medalla"]["xp"] != XP_MEDALLA[nivel]:
+    # 13 — los dos rangos de medalla, con su XP coherente con S-37
+    medallas = {m["tipo"]: m for m in bloque["medallas"]}
+    if set(medallas) != RANGOS_ESPERADOS:
         r.errores.append(
-            f"la medalla de nivel {nivel} debe dar {XP_MEDALLA[nivel]} XP, "
-            f"trae {bloque['medalla']['xp']}"
+            f"un bloque define los rangos {sorted(RANGOS_ESPERADOS)} —silver para la "
+            f"dimensión estándar y gold para la crítica— y trae {sorted(medallas)}"
         )
+    else:
+        if medallas["silver"]["xp"] != XP_MEDALLA[nivel]:
+            r.errores.append(
+                f"la medalla silver de nivel {nivel} debe dar {XP_MEDALLA[nivel]} XP, "
+                f"trae {medallas['silver']['xp']}"
+            )
+        if medallas["gold"]["xp"] != XP_MEDALLA_GOLD[nivel]:
+            r.errores.append(
+                f"la medalla gold de nivel {nivel} debe dar {XP_MEDALLA_GOLD[nivel]} XP, "
+                f"trae {medallas['gold']['xp']}"
+            )
+        if medallas["gold"]["xp"] <= medallas["silver"]["xp"]:
+            r.errores.append(
+                "la gold exige más (desafío aplicado + umbral 85%) y no puede rendir "
+                "lo mismo o menos que la silver"
+            )
+
+    # 17 a 20 — el desafío aplicado
+    r.errores.extend(_revisar_desafio(bloque["desafio"]))
+
     for m in modulos:
         if m["xp"] != XP_MODULO[nivel]:
             r.errores.append(
@@ -197,6 +236,85 @@ def _revisar_item(item: dict) -> list[str]:
             )
     if len(set(normalizar(e) for e in exps)) < len(exps):
         errores.append(f"«{enunciado}…»: repite la misma explicación en varias alternativas")
+
+    return errores
+
+
+def _revisar_desafio(desafio: dict) -> list[str]:
+    """
+    Reglas 17 a 20 — que el desafío sea CORREGIBLE y que decidir tenga costo.
+
+    Un desafío mal formado es peor que no tenerlo: si la respuesta correcta apunta
+    a una opción que no existe, o si en una selección múltiple hay que marcarlas
+    todas, la persona pasa el requisito sin decidir nada y llega a la evaluación
+    reforzada como si hubiera aplicado algo.
+    """
+    errores = []
+
+    for d in desafio["decisiones"]:
+        etiqueta = f"decisión {d['orden']}"
+        claves = {o["clave"] for o in d["opciones"]}
+        correcta = d["clave_correcta"]
+
+        if len(claves) != len(d["opciones"]):
+            errores.append(f"{etiqueta}: tiene claves de opción repetidas")
+
+        # 17 — la respuesta correcta apunta a opciones que existen
+        if d["tipo"] == "eleccion_unica":
+            if not isinstance(correcta, str) or correcta not in claves:
+                errores.append(
+                    f"{etiqueta}: la clave correcta «{correcta}» no es una de las opciones"
+                )
+
+        elif d["tipo"] == "seleccion_multiple":
+            if not isinstance(correcta, list) or not correcta:
+                errores.append(f"{etiqueta}: la selección múltiple no declara correctas")
+            else:
+                sobran = set(correcta) - claves
+                if sobran:
+                    errores.append(
+                        f"{etiqueta}: la clave correcta cita opciones inexistentes "
+                        f"{sorted(sobran)}"
+                    )
+                # 18 — marcarlas todas, o ninguna, no es decidir
+                if len(set(correcta)) == len(claves):
+                    errores.append(
+                        f"{etiqueta}: hay que marcar TODAS las opciones, así que no hay "
+                        "nada que descartar"
+                    )
+
+        elif d["tipo"] == "clasificacion":
+            grupos = {g["clave"] for g in d["grupos"]}
+            # 19 — clasificar necesita al menos dos bandejas y todas las fichas ubicadas
+            if len(grupos) < 2:
+                errores.append(f"{etiqueta}: clasificar con menos de dos grupos no es clasificar")
+            if not isinstance(correcta, dict):
+                errores.append(f"{etiqueta}: la clasificación no declara dónde va cada opción")
+            else:
+                sin_ubicar = claves - set(correcta)
+                if sin_ubicar:
+                    errores.append(
+                        f"{etiqueta}: quedan opciones sin grupo correcto {sorted(sin_ubicar)}"
+                    )
+                destinos = set(correcta.values())
+                if destinos - grupos:
+                    errores.append(
+                        f"{etiqueta}: la respuesta usa grupos que no existen "
+                        f"{sorted(destinos - grupos)}"
+                    )
+                # 20 — si todo va a la misma bandeja, se resuelve sin leer
+                if len(destinos & grupos) < 2:
+                    errores.append(
+                        f"{etiqueta}: todas las opciones van al mismo grupo, se resuelve "
+                        "sin leer el contenido"
+                    )
+
+        # La explicación tiene que explicar, igual que en los ítems.
+        bajo = (d.get("explicacion") or "").strip().lower()
+        if any(m in bajo for m in MARCADORES_SUBCADENA) or bajo.rstrip(".") in CENTINELAS_EXACTOS:
+            errores.append(f"{etiqueta}: la explicación parece un marcador de relleno")
+        elif len(bajo.split()) < MINIMO_PALABRAS_EXPLICACION:
+            errores.append(f"{etiqueta}: la explicación no explica nada")
 
     return errores
 

@@ -13,8 +13,9 @@
     "titulo",
     "resumen",
     "modulos",
+    "desafio",
     "evaluacion",
-    "medalla"
+    "medallas"
   ],
   "additionalProperties": false,
 
@@ -83,31 +84,24 @@
     },
 
     "modulos": {
-      "description": "Cantidad segun nivel: N1=2, N2=3, N3=4 (S-32). El anidamiento se expresa en nivel_estandar_origen.",
+      "description": "SIEMPRE 2, en las cinco dimensiones y en los tres niveles (S-32 revisado). La estructura es la misma para todos: 2 quiz + 1 juego + evaluacion. Lo que escala con el nivel es la profundidad de cada modulo, no cuantos hay. Modulo 1 = fundamentos (origen 1); modulo 2 = el nivel del rol (origen = nivel_estandar).",
       "type": "array",
       "minItems": 2,
-      "maxItems": 4,
+      "maxItems": 2,
       "items": { "$ref": "#/$defs/modulo" }
     },
 
+    "desafio": { "$ref": "#/$defs/desafio" },
     "evaluacion": { "$ref": "#/$defs/evaluacion" },
-    "medalla": { "$ref": "#/$defs/medalla" }
-  },
 
-  "allOf": [
-    {
-      "if": { "properties": { "nivel_estandar": { "const": 1 } } },
-      "then": { "properties": { "modulos": { "minItems": 2, "maxItems": 2 } } }
-    },
-    {
-      "if": { "properties": { "nivel_estandar": { "const": 2 } } },
-      "then": { "properties": { "modulos": { "minItems": 3, "maxItems": 3 } } }
-    },
-    {
-      "if": { "properties": { "nivel_estandar": { "const": 3 } } },
-      "then": { "properties": { "modulos": { "minItems": 4, "maxItems": 4 } } }
+    "medallas": {
+      "description": "Dos rangos por bloque: silver para la dimension estandar, gold para la critica. Cual se otorga NO lo decide el contenido sino la ruta de la persona, y la base lo verifica (migracion 006).",
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/medalla" }
     }
-  ],
+  },
 
   "$defs": {
     "modulo": {
@@ -125,7 +119,7 @@
         "duracion_min": { "type": "integer", "minimum": 3, "maximum": 30 },
         "xp": { "type": "integer", "minimum": 0 },
         "nivel_estandar_origen": {
-          "description": "Tramo en que se genero el modulo. Un bloque N3 incluye modulos con origen 1, 2 y 3.",
+          "description": "Tramo que cubre el modulo. Con 2 modulos fijos, el 1 declara siempre el tramo 1 (fundamentos) y el 2 declara el nivel del bloque: el anidamiento CNA sigue estando, expresado en el reparto de conceptos.",
           "type": "integer", "minimum": 1, "maximum": 3
         },
         "quiz_formativo": {
@@ -143,8 +137,11 @@
       "required": ["umbral_aprobacion", "n_items_por_intento", "max_reintentos", "minutos_expiracion", "banco_items"],
       "additionalProperties": false,
       "properties": {
-        "umbral_aprobacion": { "const": 0.8 },
-        "n_items_por_intento": { "type": "integer", "minimum": 5, "maximum": 30 },
+        "umbral_aprobacion": {
+          "description": "Umbral BASE del contenido. La dimension critica lo refuerza a 0.85 desde bloque_ruta, porque el mismo bloque es critico para un rol y estandar para otro.",
+          "const": 0.8
+        },
+        "n_items_por_intento": { "type": "integer", "minimum": 4, "maximum": 30 },
         "max_reintentos": { "type": "integer", "minimum": 1, "maximum": 5, "default": 3 },
         "minutos_expiracion": { "type": "integer", "minimum": 30, "default": 1440 },
         "banco_items": {
@@ -184,8 +181,90 @@
       }
     },
 
+    "desafio": {
+      "description": "Desafio aplicado. Se muestra SOLO en las dimensiones criticas del rol y es REQUISITO para abrir la evaluacion reforzada; no es una via alternativa a ella. Da XP ludico y nada mas: la medalla sigue naciendo unicamente del intento aprobado (ADR-005).",
+      "type": "object",
+      "required": ["titulo", "rol_ficticio", "situacion", "datos", "es_contenido_prueba", "decisiones"],
+      "additionalProperties": false,
+      "properties": {
+        "titulo": { "type": "string", "minLength": 5, "maxLength": 140 },
+        "rol_ficticio": {
+          "description": "En que silla se sienta la persona. Es lo que convierte el ejercicio en aplicar y no en recordar.",
+          "type": "string", "minLength": 20, "maxLength": 400
+        },
+        "situacion": { "type": "string", "minLength": 40, "maxLength": 800 },
+        "datos": {
+          "description": "El corte de datos sobre el que se decide. De PRUEBA en esta etapa: no afirma nada sobre AIEP.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["etiqueta", "valor", "es_contenido_prueba"],
+            "additionalProperties": false,
+            "properties": {
+              "etiqueta": { "type": "string", "minLength": 5, "maxLength": 200 },
+              "valor": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "es_contenido_prueba": { "const": true }
+            }
+          }
+        },
+        "es_contenido_prueba": { "const": true },
+        "decisiones": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 6,
+          "items": { "$ref": "#/$defs/decision" }
+        }
+      }
+    },
+
+    "decision": {
+      "description": "Una decision con opciones DEFINIDAS, corregible por el servidor. Nada de texto libre.",
+      "type": "object",
+      "required": ["orden", "tipo", "enunciado", "opciones", "grupos", "clave_correcta", "explicacion"],
+      "additionalProperties": false,
+      "properties": {
+        "orden": { "type": "integer", "minimum": 1 },
+        "tipo": { "enum": ["eleccion_unica", "seleccion_multiple", "clasificacion"] },
+        "enunciado": { "type": "string", "minLength": 20, "maxLength": 800 },
+        "opciones": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": ["clave", "texto"],
+            "additionalProperties": false,
+            "properties": {
+              "clave": { "type": "string", "pattern": "^[a-h]$" },
+              "texto": { "type": "string", "minLength": 3, "maxLength": 400 }
+            }
+          }
+        },
+        "grupos": {
+          "description": "Solo en 'clasificacion': las bandejas entre las que se reparte. Vacio en los otros tipos.",
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["clave", "etiqueta"],
+            "additionalProperties": false,
+            "properties": {
+              "clave": { "type": "string", "minLength": 1, "maxLength": 40 },
+              "etiqueta": { "type": "string", "minLength": 3, "maxLength": 120 }
+            }
+          }
+        },
+        "clave_correcta": {
+          "description": "Forma segun tipo: 'b' | ['a','c'] | {'a':'sostiene', ...}. NUNCA sale al cliente antes de que la decision este tomada.",
+          "type": ["string", "array", "object"]
+        },
+        "explicacion": { "type": "string", "minLength": 20, "maxLength": 1200 }
+      }
+    },
+
     "medalla": {
-      "description": "Se define por (dimension, nivel), no por cargo: asi dos cargos con contenido compartido ganan insignias distintas (ADR-003).",
+      "description": "Se define por (dimension, nivel), no por rol: asi dos roles con contenido compartido ganan insignias distintas (ADR-003). El RANGO lo decide la criticidad en la ruta, no el contenido.",
       "type": "object",
       "required": ["tipo", "nombre", "descripcion", "xp"],
       "additionalProperties": false,

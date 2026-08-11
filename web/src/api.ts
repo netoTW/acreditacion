@@ -70,13 +70,20 @@ export type BloqueDeRuta = {
   nivel_estandar: number;
   titulo: string;
   es_contenido_prueba: boolean;
+  /** Del modelo de impacto de AIEP: las 2 dimensiones de mayor peso del rol. */
+  es_critica: boolean;
+  /** El % que la dimensión pesa para este rol. Llega como string desde numeric. */
+  peso_ranking: string | number;
+  umbral: string | number | null;
   hito: string | null;
   periodo_texto: string | null;
   hito_titulo: string | null;
   medalla: string | null;
+  medalla_tipo: "silver" | "gold" | string | null;
   medalla_xp: number | null;
   modulos: number;
   obtenida: number;
+  desafio_resuelto: number;
 };
 
 export type Modulo = {
@@ -91,16 +98,58 @@ export type Modulo = {
   completado: boolean;
 };
 
-export type Bloque = BloqueDeRuta & {
+export type Bloque = Omit<BloqueDeRuta, "modulos"> & {
   medalla_id: string | null;
-  medalla_tipo: string | null;
   umbral_aprobacion: string | number | null;
   n_items_por_intento: number | null;
   max_reintentos: number | null;
   intentos_usados: number;
   modulos: Modulo[];
   modulos_completos: number;
+  /** En la dimensión crítica, el desafío va antes de la evaluación reforzada. */
+  desafio_pendiente: boolean;
   evaluacion_disponible: boolean;
+};
+
+export type OpcionDecision = { clave: string; texto: string };
+export type GrupoDecision = { clave: string; etiqueta: string };
+
+export type Decision = {
+  decision_id: string;
+  orden: number;
+  tipo: "eleccion_unica" | "seleccion_multiple" | "clasificacion";
+  enunciado: string;
+  opciones: OpcionDecision[];
+  grupos: GrupoDecision[];
+};
+
+export type DesafioAplicado = {
+  desafio_id: string;
+  titulo: string;
+  dimension: string;
+  nivel_estandar: number;
+  rol_ficticio: string;
+  situacion: string;
+  datos: { etiqueta: string; valor: string }[];
+  ya_resuelto: boolean;
+  aciertos_previos: number | null;
+  decisiones: Decision[];
+};
+
+export type ResultadoDesafio = {
+  total: number;
+  aciertos: number;
+  perfecto: boolean;
+  xp_otorgado: number;
+  ya_resuelto: boolean;
+  revelacion: {
+    decision_id: string;
+    orden: number;
+    acerto: boolean;
+    respuesta_dada: unknown;
+    clave_correcta: unknown;
+    explicacion: string;
+  }[];
 };
 
 export type ItemQuiz = {
@@ -255,5 +304,19 @@ export const api = {
   completarModulo: (id: string) =>
     pedir<{ ya_estaba: boolean; xp_otorgado: number }>(`/modulos/${id}/completar`, {
       method: "POST",
+    }),
+
+  /** El caso aplicado de la dimensión crítica. Llega SIN las respuestas correctas. */
+  desafio: (bloqueRutaId: string) =>
+    pedir<DesafioAplicado>(`/bloques-ruta/${bloqueRutaId}/desafio`),
+
+  /** El cliente manda qué decidió; corregir y puntuar es del servidor. */
+  resolverDesafio: (
+    bloqueRutaId: string,
+    respuestas: { decision_id: string; respuesta: unknown }[],
+  ) =>
+    pedir<ResultadoDesafio>(`/bloques-ruta/${bloqueRutaId}/desafio/resultado`, {
+      method: "POST",
+      body: JSON.stringify({ respuestas }),
     }),
 };

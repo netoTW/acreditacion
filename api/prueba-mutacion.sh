@@ -13,6 +13,10 @@ MUTACIONES=(
   "DROP TRIGGER tg_intento_coherente ON intento_evaluacion|el trigger de coherencia puntaje/veredicto"
   "DROP TRIGGER tg_evento_append_only ON evento_gamificacion|el append-only de los eventos"
   "ALTER TABLE evento_gamificacion DROP CONSTRAINT evento_gamificacion_check|la prohibición de XP acreditable desde juegos"
+  # Candados del modelo de roles de AIEP (migración 006)
+  "DROP TRIGGER tg_distribucion_coherente ON exigencia_cargo_dimension|la distribución que debe sumar 1"
+  "ALTER TABLE bloque_ruta DROP CONSTRAINT ck_critica_refuerza_umbral|el umbral reforzado de la dimensión crítica"
+  "DROP TRIGGER tg_resolucion_propia ON resolucion_desafio|el desafío solo sobre bloque crítico propio"
 )
 
 echo ""

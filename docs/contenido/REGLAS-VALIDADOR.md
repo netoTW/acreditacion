@@ -90,6 +90,33 @@ Cada módulo que toca XP, nivel, medallas o completitud verifica el mismo invari
 lado: generador · integrador · motor de gamificación · evaluación · juegos · API · dashboard.
 Ningún constructor puede romper el invariante sin que el test de otro lo delate.
 
+## Reglas 17 a 20 — el desafío aplicado (modelo de AIEP, ADR-006)
+
+Un desafío mal formado es peor que no tenerlo: la persona pasa el requisito sin decidir
+nada y llega a la evaluación reforzada como si hubiera aplicado algo.
+
+- **17 — la respuesta correcta apunta a opciones que existen.** En elección única, la
+  clave es una de las opciones; en selección múltiple, todas las correctas existen; en
+  clasificación, cada opción tiene grupo y los grupos citados existen.
+- **18 — marcarlas todas no es decidir.** Una selección múltiple donde la respuesta es
+  el conjunto completo no tiene nada que descartar.
+- **19 — clasificar necesita al menos dos bandejas** y todas las fichas ubicadas.
+- **20 — si todas las opciones van al mismo grupo**, la decisión se resuelve sin leer.
+
+Además, la explicación de cada decisión pasa el mismo filtro de relleno que los ítems
+(regla 7): sin marcadores y con un mínimo de palabras.
+
+## Reglas revisadas por la estructura escalonada
+
+- **3** — todo bloque lleva **2 módulos**, en las cinco dimensiones y los tres niveles.
+  Antes eran 2/3/4 según nivel.
+- **4** — el anidamiento CNA ya no se verifica como "un módulo por tramo": el primer
+  módulo declara el tramo 1 y el último el nivel del bloque.
+- **5 (nueva)** — un bloque de nivel 3 con quices de menos de 5 ítems no expresa mayor
+  profundidad que uno de nivel 1. Si el nivel no cambia nada, el nivel no significa nada.
+- **13** — el bloque define **dos rangos de medalla** con su XP: silver y gold, y la
+  gold no puede rendir lo mismo o menos que la silver.
+
 ## Qué pasa cuando algo falla
 
 - **Contenido rechazado** → no se integra, queda en estado `rechazado` con el detalle, y se

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { SesionCaida, api, token, type BloqueDeRuta, type Yo } from "./api";
 import { Bloque } from "./pantallas/Bloque";
 import { Calibre } from "./pantallas/Calibre";
+import { Desafio } from "./pantallas/Desafio";
 import { Evaluacion } from "./pantallas/Evaluacion";
 import { Ingreso } from "./pantallas/Ingreso";
 import { Mesa } from "./pantallas/Mesa";
@@ -21,6 +22,7 @@ type Vista =
   | { t: "bloque"; bloqueRutaId: string }
   | { t: "modulo"; bloqueRutaId: string; moduloId: string }
   | { t: "quiz"; bloqueRutaId: string; moduloId: string; tituloModulo: string }
+  | { t: "desafio"; bloqueRutaId: string }
   | { t: "evaluacion"; bloqueRutaId: string }
   | { t: "calibre"; bloqueRutaId: string; moduloId: string }
   | { t: "mesa" };
@@ -94,7 +96,19 @@ export function App() {
         onVolver={() => { cargar(); setVista({ t: "ruta" }); }}
         onAbrirModulo={(moduloId) =>
           setVista({ t: "modulo", bloqueRutaId: vista.bloqueRutaId, moduloId })}
+        onAbrirDesafio={() => setVista({ t: "desafio", bloqueRutaId: vista.bloqueRutaId })}
         onRendir={() => setVista({ t: "evaluacion", bloqueRutaId: vista.bloqueRutaId })}
+      />
+    );
+
+  if (vista.t === "desafio")
+    return (
+      <Desafio
+        {...comun}
+        bloqueRutaId={vista.bloqueRutaId}
+        onVolver={() => { cargar(); setVista({ t: "bloque", bloqueRutaId: vista.bloqueRutaId }); }}
+        onResuelto={cargar}
+        onSalir={salir}
       />
     );
 
