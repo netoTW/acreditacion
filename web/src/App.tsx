@@ -5,6 +5,7 @@ import { Calibre } from "./pantallas/Calibre";
 import { Desafio } from "./pantallas/Desafio";
 import { Evaluacion } from "./pantallas/Evaluacion";
 import { Ingreso } from "./pantallas/Ingreso";
+import { Cohorte } from "./pantallas/Cohorte";
 import { LineaTiempo } from "./pantallas/LineaTiempo";
 import { Mesa } from "./pantallas/Mesa";
 import { MiRuta } from "./pantallas/MiRuta";
@@ -24,7 +25,7 @@ type Vista =
   | { t: "modulo"; bloqueRutaId: string; moduloId: string }
   | { t: "quiz"; bloqueRutaId: string; moduloId: string; tituloModulo: string }
   | { t: "desafio"; bloqueRutaId: string }
-  | { t: "juego"; bloqueRutaId: string }
+  | { t: "juego"; bloqueRutaId: string; clave: string }
   | { t: "evaluacion"; bloqueRutaId: string }
   | { t: "calibre"; bloqueRutaId: string; moduloId: string }
   | { t: "mesa" };
@@ -99,21 +100,23 @@ export function App() {
         onAbrirModulo={(moduloId) =>
           setVista({ t: "modulo", bloqueRutaId: vista.bloqueRutaId, moduloId })}
         onAbrirDesafio={() => setVista({ t: "desafio", bloqueRutaId: vista.bloqueRutaId })}
-        onAbrirJuego={() => setVista({ t: "juego", bloqueRutaId: vista.bloqueRutaId })}
+        onAbrirJuego={(clave) => setVista({ t: "juego", bloqueRutaId: vista.bloqueRutaId, clave })}
         onRendir={() => setVista({ t: "evaluacion", bloqueRutaId: vista.bloqueRutaId })}
       />
     );
 
-  if (vista.t === "juego")
-    return (
-      <LineaTiempo
-        {...comun}
-        bloqueRutaId={vista.bloqueRutaId}
-        onVolver={() => { cargar(); setVista({ t: "bloque", bloqueRutaId: vista.bloqueRutaId }); }}
-        onXpGanado={cargar}
-        onSalir={salir}
-      />
-    );
+  // Cada dimensión tiene su juego y su pantalla; la clave la manda el bloque.
+  if (vista.t === "juego") {
+    const propios = {
+      ...comun,
+      bloqueRutaId: vista.bloqueRutaId,
+      onVolver: () => { cargar(); setVista({ t: "bloque", bloqueRutaId: vista.bloqueRutaId }); },
+      onXpGanado: cargar,
+      onSalir: salir,
+    };
+    if (vista.clave === "cohorte") return <Cohorte {...propios} />;
+    return <LineaTiempo {...propios} />;
+  }
 
   if (vista.t === "desafio")
     return (

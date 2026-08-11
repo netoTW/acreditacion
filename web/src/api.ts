@@ -113,6 +113,42 @@ export type Bloque = Omit<BloqueDeRuta, "modulos"> & {
   evaluacion_disponible: boolean;
 };
 
+export type CasoCohorte = {
+  caso_id: string;
+  codigo: string;
+  titulo: string;
+  contexto: string;
+  etapas: { nombre: string; valor: number }[];
+  /** La referencia viaja: una caída no significa nada sin ella. */
+  tramos: { desde: string; hasta: string; referencia_pct: number }[];
+  indicadores: { clave: string; nombre: string; valor: string }[];
+};
+
+export type PartidaCohorte = { juego: string; casos: CasoCohorte[] };
+
+export type ResultadoCohorte = {
+  total_casos: number;
+  tramos_correctos: number;
+  indicadores_correctos: number;
+  lectura_limpia: boolean;
+  puntos: number;
+  xp_otorgado: number;
+  ya_jugado_hoy: boolean;
+  revelacion: {
+    caso_id: string;
+    codigo: string;
+    titulo: string;
+    acerto_tramo: boolean;
+    acerto_indicador: boolean;
+    tramo_correcto: number;
+    tramo_nombre: string;
+    explicacion_quiebre: string;
+    indicador_correcto: string;
+    indicador_nombre: string;
+    explicacion_indicador: string;
+  }[];
+};
+
 export type CartaHito = { hito_id: string; codigo: string; titulo: string };
 
 export type LineaRepartida = {
@@ -336,6 +372,19 @@ export const api = {
   completarModulo: (id: string) =>
     pedir<{ ya_estaba: boolean; xp_otorgado: number }>(`/modulos/${id}/completar`, {
       method: "POST",
+    }),
+
+  /** D2: tres cohortes con su referencia, SIN el tramo de quiebre. */
+  cohorte: (bloqueRutaId: string) =>
+    pedir<PartidaCohorte>(`/bloques-ruta/${bloqueRutaId}/juego/cohorte`),
+
+  cerrarCohorte: (
+    bloqueRutaId: string,
+    respuestas: { caso_id: string; tramo: number | null; indicador: string | null }[],
+  ) =>
+    pedir<ResultadoCohorte>(`/bloques-ruta/${bloqueRutaId}/juego/cohorte/resultado`, {
+      method: "POST",
+      body: JSON.stringify({ respuestas }),
     }),
 
   /** D3: seis hitos barajados, SIN su período ni su año. */

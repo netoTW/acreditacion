@@ -22,7 +22,12 @@ JUEGOS = {
         "nombre": "Línea de tiempo del proceso",
         "descripcion": "Ordena los hitos reales de la autoevaluación y la acreditación",
     },
-    # Fase 2, pendientes: GESTION, DOCENCIA, VCM, ICI.
+    "DOCENCIA": {
+        "clave": "cohorte",
+        "nombre": "El caso del estudiante que se pierde",
+        "descripcion": "Lee una cohorte y señala dónde se rompe la progresión",
+    },
+    # Fase 2, pendientes: GESTION, VCM, ICI.
 }
 
 

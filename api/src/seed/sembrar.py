@@ -148,6 +148,12 @@ def sembrar(conn) -> dict:
         # arrancar que arrancar con un banco que se puede aprobar sin saber la materia.
         raise RuntimeError(f"contenido rechazado por el validador → {detalle}")
 
+    # El contenido de los juegos por dimensión pasa su propio validador. Si un caso
+    # no tiene una respuesta defendible y una sola, el sistema no levanta: un juego
+    # que castiga al que entendió es peor que no tenerlo.
+    from generador.juegos import integrar_juegos
+    integrar_juegos(conn)
+
     # ----------------------------------------------------------- LA MATRIZ
     # El único dato escrito a mano es el % del Excel. El nivel de exigencia y la
     # criticidad se DERIVAN de él (`matriz_de`), igual que el escalón se deriva

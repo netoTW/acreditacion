@@ -10,7 +10,7 @@ type Props = {
   onVolver: () => void;
   onAbrirModulo: (moduloId: string) => void;
   onAbrirDesafio: () => void;
-  onAbrirJuego: () => void;
+  onAbrirJuego: (clave: string) => void;
   onRendir: () => void;
   onSalir: () => void;
 };
@@ -139,7 +139,7 @@ export function Bloque(p: Props) {
                 </div>
               </div>
               {b.juego ? (
-                <button className="btn btn-primary" onClick={p.onAbrirJuego}>Jugar</button>
+                <button className="btn btn-primary" onClick={() => p.onAbrirJuego(b.juego!.clave)}>Jugar</button>
               ) : (
                 <div className="mod-status">en construcción</div>
               )}

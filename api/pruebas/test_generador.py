@@ -219,3 +219,49 @@ def test_rechaza_una_dimension_inventada():
     b["dimension"] = "MARKETING"
     r = validar(b)
     assert not r.valido
+
+
+# ----------------------------------------- contenido de los juegos por dimensión
+def test_los_casos_de_cohorte_tienen_una_sola_respuesta_defendible():
+    """
+    La regla de fondo de D2: el tramo declarado es el que más cae bajo SU
+    referencia, y por un margen claro. Un caso donde dos tramos están igual de mal
+    castiga a quien entendió.
+    """
+    from generador.juegos import validar_juegos
+    assert validar_juegos() == []
+
+
+def test_un_caso_con_el_quiebre_mal_declarado_se_rechaza():
+    from copy import deepcopy
+    from generador.juegos import validar_caso_cohorte
+    from generador.juegos.cohortes import CASOS
+
+    malo = deepcopy(CASOS[0])
+    malo["tramo_quiebre"] = (malo["tramo_quiebre"] + 1) % len(malo["tramos"])
+    errores = validar_caso_cohorte(malo)
+    assert any("el que más cae bajo su referencia" in e for e in errores)
+
+
+def test_un_caso_con_dos_tramos_igual_de_malos_se_rechaza():
+    """Si la respuesta es discutible, el juego no se integra."""
+    from copy import deepcopy
+    from generador.juegos import validar_caso_cohorte
+    from generador.juegos.cohortes import CASOS
+
+    malo = deepcopy(CASOS[0])
+    # Se hunde otro tramo hasta empatar con el declarado.
+    malo["etapas"][4]["valor"] = 40
+    malo["etapas"][5]["valor"] = 26
+    errores = validar_caso_cohorte(malo)
+    assert any("discutible" in e or "el que más cae" in e for e in errores)
+
+
+def test_una_cohorte_que_crece_se_rechaza():
+    from copy import deepcopy
+    from generador.juegos import validar_caso_cohorte
+    from generador.juegos.cohortes import CASOS
+
+    malo = deepcopy(CASOS[0])
+    malo["etapas"][3]["valor"] = malo["etapas"][2]["valor"] + 10
+    assert any("crece" in e for e in validar_caso_cohorte(malo))

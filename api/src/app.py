@@ -24,6 +24,7 @@ from identidad import SesionInvalida, proveedor_activo, verificar
 from motor.desafio import NoCritica, resolver_desafio, ver_desafio
 from motor.juegos import JuegoNoCorresponde, juego_de
 from motor.linea_tiempo import cerrar_linea, repartir as repartir_linea
+from motor.cohorte import cerrar_cohorte, repartir as repartir_cohorte
 from motor.evaluacion import (
     DesafioPendiente, ModulosPendientes, SinReintentos, abrir_intento,
     cerrar_intento, responder,
@@ -736,6 +737,61 @@ def resultado_linea_tiempo(bloque_ruta_id: UUID, cuerpo: LineaCerrada,
         "pares_correctos": r.pares_correctos,
         "pares_totales": r.pares_totales,
         "linea_perfecta": r.linea_perfecta,
+        "puntos": r.puntos,
+        "xp_otorgado": r.xp_otorgado,
+        "ya_jugado_hoy": r.ya_jugado_hoy,
+        "revelacion": r.revelacion,
+    }
+
+
+class CasoResuelto(BaseModel):
+    caso_id: UUID
+    tramo: Optional[int] = None
+    indicador: Optional[str] = None
+
+
+class PartidaCohorte(BaseModel):
+    respuestas: list[CasoResuelto] = Field(min_length=1, max_length=3)
+
+
+@app.get("/bloques-ruta/{bloque_ruta_id}/juego/cohorte", tags=["juegos"])
+def juego_cohorte(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
+    """
+    Tres cohortes con sus referencias, **sin el tramo de quiebre ni el indicador**.
+
+    La referencia sí viaja: una caída no significa nada sin ella, y sin referencia
+    el juego premiaría señalar el número más grande.
+    """
+    _bloque_propio(bloque_ruta_id, yo)
+    with pool.connection() as conn:
+        try:
+            return repartir_cohorte(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id)
+        except JuegoNoCorresponde as e:
+            raise HTTPException(409, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+
+
+@app.post("/bloques-ruta/{bloque_ruta_id}/juego/cohorte/resultado", tags=["juegos"])
+def resultado_cohorte(bloque_ruta_id: UUID, cuerpo: PartidaCohorte,
+                      yo: UUID = Depends(colaborador_actual)):
+    """Corrige los tres casos en el servidor. XP lúdico, con su cupo diario por bloque."""
+    _bloque_propio(bloque_ruta_id, yo)
+    with pool.connection() as conn:
+        try:
+            r = cerrar_cohorte(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id,
+                               respuestas=[x.model_dump() for x in cuerpo.respuestas])
+        except JuegoNoCorresponde as e:
+            raise HTTPException(409, str(e))
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+    return {
+        "total_casos": r.total_casos,
+        "tramos_correctos": r.tramos_correctos,
+        "indicadores_correctos": r.indicadores_correctos,
+        "lectura_limpia": r.lectura_limpia,
         "puntos": r.puntos,
         "xp_otorgado": r.xp_otorgado,
         "ya_jugado_hoy": r.ya_jugado_hoy,

@@ -793,8 +793,11 @@ def test_el_bloque_dice_que_juego_le_toca(cliente, apoyo):
         detalle = cliente.get(f"/bloques-ruta/{b['bloque_ruta_id']}", headers=_cab(apoyo)).json()
         juegos[b["dimension"]] = detalle["juego"]
 
+    # Se listan a mano y no desde el registro a propósito: si se leyera el mismo
+    # mapa que sirve la API, la prueba pasaría con el registro vacío.
     assert juegos["CALIDAD"]["clave"] == "linea_tiempo"
-    assert all(juegos[d] is None for d in ("GESTION", "DOCENCIA", "VCM", "ICI"))
+    assert juegos["DOCENCIA"]["clave"] == "cohorte"
+    assert all(juegos[d] is None for d in ("GESTION", "VCM", "ICI")), "faltan de la fase 2"
 
 
 def test_la_linea_no_entrega_las_fechas_antes_de_ordenar(cliente, apoyo):
@@ -905,3 +908,108 @@ def test_una_linea_con_hitos_repetidos_se_rechaza(cliente, apoyo):
     r = cliente.post(f"/bloques-ruta/{bid}/juego/linea-tiempo/resultado",
                      headers=_cab(apoyo), json={"orden": [uno, uno]})
     assert r.status_code == 422
+
+
+# ------------------------------- D2 · El caso del estudiante que se pierde
+def _bloque_docencia(cliente, token):
+    ruta = cliente.get("/mi/ruta", headers=_cab(token)).json()
+    return next(b for b in ruta if b["dimension"] == "DOCENCIA")["bloque_ruta_id"]
+
+
+def test_la_cohorte_no_entrega_el_quiebre_antes_de_diagnosticar(cliente, apoyo):
+    """Como el banco de la evaluación: lo que corrige no viaja."""
+    partida = cliente.get(
+        f"/bloques-ruta/{_bloque_docencia(cliente, apoyo)}/juego/cohorte", headers=_cab(apoyo)
+    ).json()
+
+    assert len(partida["casos"]) == 3
+    for c in partida["casos"]:
+        assert "tramo_quiebre" not in c and "indicador_correcto" not in c
+        # La referencia SÍ viaja: sin ella el juego premiaría la caída más grande.
+        assert all("referencia_pct" in t for t in c["tramos"])
+        assert len(c["etapas"]) == len(c["tramos"]) + 1
+        assert len(c["indicadores"]) == 4
+
+
+def test_el_juego_de_docencia_no_se_juega_en_otra_dimension(cliente, apoyo):
+    bid = _bloque_calidad(cliente, apoyo)      # ahí vive la Línea de tiempo
+    assert cliente.get(f"/bloques-ruta/{bid}/juego/cohorte",
+                       headers=_cab(apoyo)).status_code == 409
+
+
+def test_la_cohorte_de_otro_rol_no_se_abre(cliente, apoyo, direccion):
+    ajeno = _bloque_docencia(cliente, direccion)
+    assert cliente.get(f"/bloques-ruta/{ajeno}/juego/cohorte",
+                       headers=_cab(apoyo)).status_code == 404
+
+
+def _clave_de_casos(conexion, codigos):
+    filas = conexion.execute(
+        """SELECT codigo, tramo_quiebre, indicador_correcto
+             FROM caso_cohorte WHERE codigo = ANY(%s)""",
+        (codigos,),
+    ).fetchall()
+    return {f[0]: (f[1], f[2]) for f in filas}
+
+
+def test_diagnosticar_los_tres_casos_da_lectura_limpia(cliente, apoyo):
+    """El servidor corrige contra el contenido; el cliente solo dice qué señaló."""
+    import psycopg
+    bid = _bloque_docencia(cliente, apoyo)
+    partida = cliente.get(f"/bloques-ruta/{bid}/juego/cohorte", headers=_cab(apoyo)).json()
+
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        clave = _clave_de_casos(conn, [c["codigo"] for c in partida["casos"]])
+
+    r = cliente.post(
+        f"/bloques-ruta/{bid}/juego/cohorte/resultado", headers=_cab(apoyo),
+        json={"respuestas": [
+            {"caso_id": c["caso_id"], "tramo": clave[c["codigo"]][0],
+             "indicador": clave[c["codigo"]][1]}
+            for c in partida["casos"]
+        ]},
+    ).json()
+
+    assert r["tramos_correctos"] == 3 and r["indicadores_correctos"] == 3
+    assert r["lectura_limpia"] is True
+    assert r["puntos"] == 3 * 45 + 3 * 45 + 90
+    assert all(x["explicacion_quiebre"] and x["explicacion_indicador"] for x in r["revelacion"])
+
+
+def test_el_tramo_y_la_causa_se_cobran_por_separado(cliente, apoyo):
+    """
+    Encontrar el quiebre es leer datos; explicarlo es entender el proceso. Acertar
+    uno y fallar el otro tiene que notarse en el puntaje.
+    """
+    import psycopg
+    bid = _bloque_docencia(cliente, apoyo)
+    partida = cliente.get(f"/bloques-ruta/{bid}/juego/cohorte", headers=_cab(apoyo)).json()
+
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        clave = _clave_de_casos(conn, [c["codigo"] for c in partida["casos"]])
+
+    r = cliente.post(
+        f"/bloques-ruta/{bid}/juego/cohorte/resultado", headers=_cab(apoyo),
+        json={"respuestas": [
+            # tramos correctos, causas todas equivocadas
+            {"caso_id": c["caso_id"], "tramo": clave[c["codigo"]][0], "indicador": "no-existe"}
+            for c in partida["casos"]
+        ]},
+    ).json()
+
+    assert r["tramos_correctos"] == 3 and r["indicadores_correctos"] == 0
+    assert r["lectura_limpia"] is False
+    assert r["puntos"] == 3 * 45, "sin bono y sin los puntos de la causa"
+
+
+def test_la_cohorte_es_ludica_y_no_toca_lo_acreditable(cliente, apoyo):
+    bid = _bloque_docencia(cliente, apoyo)
+    antes = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    partida = cliente.get(f"/bloques-ruta/{bid}/juego/cohorte", headers=_cab(apoyo)).json()
+    cliente.post(f"/bloques-ruta/{bid}/juego/cohorte/resultado", headers=_cab(apoyo),
+                 json={"respuestas": [{"caso_id": c["caso_id"], "tramo": 0, "indicador": "x"}
+                                      for c in partida["casos"]]})
+    despues = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    assert despues["xp_acreditable"] == antes["xp_acreditable"]
+    assert despues["insignias"] == antes["insignias"]
+    assert despues["escalon"] == antes["escalon"]
