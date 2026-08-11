@@ -212,9 +212,9 @@ def test_el_panel_de_gestion_pide_permiso_institucional(cliente, apoyo, direccio
 
 def test_el_ranking_es_agregado_y_no_filtra_insignias_ajenas(cliente, apoyo):
     """S-16: nombre, unidad, XP y conteo. Nunca el nombre de insignias de otro rol."""
-    filas = cliente.get("/ranking", headers=_cab(apoyo)).json()
-    assert filas and len(filas) <= 50, "el ranking va acotado a la cabeza de la tabla"
-    for f in filas:
+    r = cliente.get("/ranking", headers=_cab(apoyo)).json()
+    assert r["cabeza"] and len(r["cabeza"]) <= 50, "el ranking va acotado a la cabeza"
+    for f in r["cabeza"]:
         assert isinstance(f["insignias"], int)
         assert "medalla" not in f and "insignias_detalle" not in f
 
@@ -627,10 +627,9 @@ def test_el_ranking_suma_ludico_solo_hasta_el_acreditable(cliente, apoyo):
 
 def test_quien_no_avanza_no_escala_jugando(cliente, direccion):
     """Con XP acreditable en cero, todo el XP lúdico aporta cero al ranking."""
-    fila = [f for f in cliente.get("/ranking", headers=_cab(direccion)).json()
-            if f["xp_acreditable"] == 0]
-    for f in fila:
-        assert f["xp_ranking"] == 0, "sin recorrido, jugar no da posición"
+    r = cliente.get("/ranking", headers=_cab(direccion)).json()
+    for f in [x for x in r["cabeza"] if int(x["xp_acreditable"]) == 0]:
+        assert int(f["xp_ranking"]) == 0, "sin recorrido, jugar no da posición"
 
 
 # ------------------------------------------- B2 · Mesa de comité (Camino B)
@@ -1533,3 +1532,155 @@ def test_el_login_dev_no_ofrece_la_poblacion_sintetica(cliente, conexion):
         "Nivel 1 · Alta Dirección", "Nivel 2 · Liderazgo intermedio",
         "Nivel 3 · Administrativo y apoyo",
     }
+
+
+# ================================================================== ranking
+def test_el_ranking_nunca_devuelve_identificadores(cliente, apoyo):
+    """
+    La persona que consulta se reconoce con la marca `soy_yo`, que pone el
+    servidor. Repartir el id interno de cada uno sería un dato personal más.
+    """
+    import json
+    for url in ("/ranking", "/ranking/mi-unidad", "/ranking/unidades"):
+        crudo = json.dumps(cliente.get(url, headers=_cab(apoyo)).json()).lower()
+        for filtrado in ("colaborador_id", "unidad_id", "email", "@aiep"):
+            assert filtrado not in crudo, f"{url} filtró «{filtrado}»"
+
+
+def test_el_ranking_usa_el_xp_topeado_y_no_el_ludico_crudo(cliente, apoyo, conexion):
+    """
+    El invariante que define la tabla: jugar mucho sin avanzar no escala. El
+    puntaje del ranking es el acreditable más lo lúdico hasta igualarlo.
+    """
+    r = cliente.get("/ranking", headers=_cab(apoyo)).json()
+    for f in r["cabeza"]:
+        acreditable, topeado = int(f["xp_acreditable"]), int(f["xp_ranking"])
+        ludico = int(f["xp_ludico"])
+        assert topeado == acreditable + min(ludico, acreditable)
+        assert topeado <= 2 * acreditable, "el juego nunca puede más que duplicar"
+
+    # Y lo que el tope dejó fuera se informa, porque es lo que se desbloquea.
+    mio = r["yo"]
+    assert r["xp_de_juego_sin_contar"] == max(
+        0, int(mio["xp_ludico"]) - int(mio["xp_acreditable"])
+    )
+
+
+def test_quien_solo_juega_no_escala(cliente, direccion, conexion):
+    """El caso que el tope existe para impedir, comprobado contra la base."""
+    solo_juega = conexion.execute(
+        """SELECT count(*) FROM estado_colaborador
+            WHERE xp_acreditable = 0 AND xp_ludico > 0 AND xp_ranking > 0"""
+    ).fetchone()[0]
+    assert solo_juega == 0, "sin XP acreditable, el ranking no puede ser mayor que cero"
+
+
+def test_una_unidad_bajo_el_umbral_no_produce_ranking_nominal(cliente, conexion):
+    """
+    Ley 21.719. En un grupo chico, una posición con nombre identifica a una
+    persona: la vista no tiene filas para esas unidades y el endpoint lo dice.
+    """
+    k = conexion.execute("SELECT fn_umbral_anonimato()").fetchone()[0]
+    chicas = [
+        f[0] for f in conexion.execute(
+            """SELECT u.nombre FROM colaborador c JOIN unidad u ON u.id = c.unidad_id
+                GROUP BY u.nombre HAVING count(*) < %s""", (k,)
+        ).fetchall()
+    ]
+    assert chicas, "el escenario necesita alguna unidad bajo el umbral"
+
+    en_vista = {
+        f[0] for f in conexion.execute("SELECT DISTINCT unidad FROM ranking_en_unidad").fetchall()
+    }
+    assert not (set(chicas) & en_vista), "el ranking nominal alcanzó una unidad chica"
+
+    # Y ninguna fila de la vista describe a un grupo menor que el umbral.
+    minimo = conexion.execute("SELECT MIN(personas) FROM ranking_en_unidad").fetchone()[0]
+    assert minimo is None or minimo >= k
+
+
+def test_el_ranking_de_mi_unidad_se_niega_si_el_grupo_es_chico(cliente, conexion):
+    """Con una unidad chica el endpoint responde con el motivo, no con una tabla."""
+    chica = conexion.execute(
+        """SELECT c.id FROM colaborador c
+             JOIN unidad u ON u.id = c.unidad_id
+            WHERE u.id IN (SELECT unidad_id FROM colaborador
+                            GROUP BY unidad_id HAVING count(*) < fn_umbral_anonimato())
+            LIMIT 1"""
+    ).fetchone()
+    assert chica, "el escenario necesita a alguien en una unidad chica"
+
+    token = cliente.post("/auth/dev/actuar-como", json={"colaborador_id": str(chica[0])})
+    # La población sintética no entra por el login dev, así que se emite a mano.
+    from identidad.sesion import emitir
+    r = cliente.get("/ranking/mi-unidad", headers=_cab(emitir(chica[0], proveedor="dev")))
+
+    assert r.status_code == 200
+    cuerpo = r.json()
+    assert cuerpo["disponible"] is False and cuerpo["cabeza"] == []
+    assert "identificable" in cuerpo["motivo"]
+
+
+def test_el_ranking_entre_unidades_pliega_las_chicas(cliente, apoyo, conexion):
+    filas = cliente.get("/ranking/unidades", headers=_cab(apoyo)).json()
+    k = conexion.execute("SELECT fn_umbral_anonimato()").fetchone()[0]
+    for f in filas:
+        assert f["personas"] >= k
+    reservada = [f for f in filas if f["es_reservado"]]
+    assert reservada and reservada[0]["posicion"] is None, \
+        "la fila plegada no compite: no tiene posición"
+
+
+def test_el_ranking_no_publica_una_lista_de_los_ultimos(cliente, apoyo):
+    """
+    Decisión de diseño, no accidente: el rezago se acompaña agregado por unidad
+    (E-03), no se publica con nombre. No hay endpoint que devuelva la cola.
+    """
+    r = cliente.get("/ranking", headers=_cab(apoyo)).json()
+    posiciones = [f["posicion"] for f in r["cabeza"]]
+    assert posiciones == sorted(posiciones) and posiciones[0] == 1
+    assert len(r["cabeza"]) < r["personas"], "nunca se sirve la tabla completa"
+
+
+def test_dentro_de_la_unidad_tampoco_se_publica_la_cola(cliente, apoyo, conexion):
+    """
+    En la propia unidad el grupo es chico: servir la tabla entera equivale a
+    publicar quiénes van últimos entre sus pares. Va acotada igual que la
+    institucional, y si no estás en la cabeza el endpoint igual te dice dónde vas.
+    """
+    r = cliente.get("/ranking/mi-unidad", headers=_cab(apoyo)).json()
+    if not r["disponible"]:
+        return
+    assert len(r["cabeza"]) <= 10
+    if r["personas"] > 10:
+        assert len(r["cabeza"]) < r["personas"], "no se sirve la unidad completa"
+    assert r["yo"]["posicion"] >= 1
+
+
+def test_el_ranking_institucional_no_nombra_la_unidad_de_un_grupo_chico(cliente, apoyo, conexion):
+    """
+    La filtración por la otra puerta: el ranking institucional no agrupa por
+    unidad, pero publicaba su nombre junto al de la persona. Con una unidad de
+    tres, eso identifica a alguien de un grupo bajo el umbral y expone su puesto.
+    """
+    k = conexion.execute("SELECT fn_umbral_anonimato()").fetchone()[0]
+    chicas = {
+        f[0] for f in conexion.execute(
+            """SELECT u.nombre FROM colaborador c JOIN unidad u ON u.id = c.unidad_id
+                GROUP BY u.nombre HAVING count(*) < %s""", (k,)
+        ).fetchall()
+    }
+    assert chicas, "el escenario necesita alguna unidad bajo el umbral"
+
+    nombradas = {
+        f[0] for f in conexion.execute(
+            "SELECT DISTINCT unidad FROM ranking_institucional WHERE unidad IS NOT NULL"
+        ).fetchall()
+    }
+    assert not (chicas & nombradas), f"el ranking nombró unidades chicas: {chicas & nombradas}"
+
+    # Y la persona no desaparece: su posición sigue estando, sin la etiqueta.
+    con_reserva = conexion.execute(
+        "SELECT count(*) FROM ranking_institucional WHERE unidad IS NULL"
+    ).fetchone()[0]
+    assert con_reserva > 0

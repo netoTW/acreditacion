@@ -41,6 +41,9 @@ from motor.quiz import puntuar_quiz
 # Cuánta gente devuelve el ranking. No es una preferencia estética: es lo que
 # hace que el endpoint siga respondiendo cuando la comunidad completa esté dentro.
 CABEZA_DEL_RANKING = int(os.environ.get("CABEZA_DEL_RANKING", "50"))
+# En la propia unidad la cabeza es más corta: el grupo es chico y mostrar la
+# tabla entera equivale a publicar quiénes van últimos entre sus pares.
+CABEZA_EN_UNIDAD = int(os.environ.get("CABEZA_EN_UNIDAD", "10"))
 
 DSN = os.environ["DATABASE_URL"]
 pool = ConnectionPool(DSN, min_size=1, max_size=10, open=True)
@@ -368,19 +371,124 @@ def mis_insignias(yo: UUID = Depends(colaborador_actual)):
     )
 
 
-@app.get("/ranking", tags=["mi ruta"])
+# ==================================================================== ranking
+#
+# Dos límites que no dependen de esta capa:
+#
+# - **El tope.** El orden lo da `xp_ranking`: el XP lúdico cuenta solo hasta
+#   donde llega el acreditable. Jugar mucho sin avanzar no escala.
+# - **El umbral de anonimato.** El ranking nominal dentro de una unidad chica
+#   sencillamente no tiene filas en la vista (Ley 21.719).
+#
+# Y una regla de esta capa: **ningún endpoint devuelve `colaborador_id`**. La
+# persona que consulta se reconoce con la marca `soy_yo`, que pone el servidor.
+
+
+def _sin_ids(filas_ranking: list[dict], yo: UUID) -> list[dict]:
+    """Quita los identificadores y marca cuál soy yo. Nadie recibe el id de otro."""
+    limpias = []
+    for f in filas_ranking:
+        fila = {k: v for k, v in f.items() if k not in ("colaborador_id", "unidad_id")}
+        fila["soy_yo"] = str(f.get("colaborador_id")) == str(yo)
+        limpias.append(fila)
+    return limpias
+
+
+def _mi_posicion(vista: str, yo: UUID, filtro: str = "", args: tuple = ()) -> Optional[dict]:
+    fila = filas(
+        f"SELECT * FROM {vista} WHERE colaborador_id = %s {filtro}", (yo,) + args
+    )
+    return _sin_ids(fila, yo)[0] if fila else None
+
+
+@app.get("/ranking", tags=["ranking"])
 def ranking(yo: UUID = Depends(colaborador_actual)):
     """
-    Ranking por XP total, con el desempate de S-15.
+    Ranking institucional: **la cabeza de la tabla y tu posición**, nunca la
+    escalera completa.
 
-    Es agregado: nombre, unidad, XP y **conteo** de insignias. Nunca el nombre de las
-    insignias de otro cargo, que filtraría su contenido (S-16).
-
-    Va acotado a la cabeza de la tabla: con 1.600 personas devolverlas todas ya es
-    una respuesta incómoda, y con 85.000 es una respuesta que nadie puede usar. El
-    ranking se lee arriba; el avance propio se ve en la ruta.
+    Devolver 85.000 filas no es una respuesta que alguien pueda usar, y ver el
+    puesto 47.000 de 85.000 no le sirve a nadie. Lo que sí sirve —y va acá— es
+    cuánto XP de juego tienes sin contar por no haber avanzado la ruta: eso es
+    accionable, y es el tope haciendo su trabajo.
     """
-    return filas("SELECT * FROM ranking ORDER BY posicion LIMIT %s", (CABEZA_DEL_RANKING,))
+    cabeza = filas(
+        "SELECT * FROM ranking_institucional ORDER BY posicion LIMIT %s",
+        (CABEZA_DEL_RANKING,),
+    )
+    mio = _mi_posicion("ranking_institucional", yo)
+
+    sin_contar = 0
+    faltante = None
+    if mio:
+        # Lo lúdico que el tope dejó fuera. No es un castigo: es lo que se
+        # desbloquea avanzando, y decirlo así convierte el tope en un motivo.
+        sin_contar = max(0, int(mio["xp_ludico"]) - int(mio["xp_acreditable"]))
+        arriba = filas(
+            """SELECT MIN(xp_ranking) AS xp FROM ranking_institucional
+                WHERE posicion < %s""",
+            (mio["posicion"],),
+        )
+        if arriba and arriba[0]["xp"] is not None:
+            faltante = int(arriba[0]["xp"]) - int(mio["xp_ranking"]) + 1
+
+    return {
+        "personas": cabeza[0]["personas"] if cabeza else 0,
+        "cabeza": _sin_ids(cabeza, yo),
+        "yo": mio,
+        "xp_de_juego_sin_contar": sin_contar,
+        "xp_para_subir": faltante,
+    }
+
+
+@app.get("/ranking/mi-unidad", tags=["ranking"])
+def ranking_mi_unidad(yo: UUID = Depends(colaborador_actual)):
+    """
+    El ranking sano: se compite con los pares y la posición significa algo.
+
+    Si tu unidad tiene menos personas que el umbral, **no hay ranking nominal**:
+    la vista no produce filas y el endpoint lo dice en vez de inventar una tabla.
+    """
+    mio = _mi_posicion("ranking_en_unidad", yo)
+    k = filas("SELECT fn_umbral_anonimato() AS k")[0]["k"]
+
+    if not mio:
+        return {
+            "disponible": False,
+            "umbral_anonimato": k,
+            "motivo": (
+                f"tu unidad tiene menos de {k} personas: un ranking nominal ahí "
+                "publicaría la posición de alguien identificable"
+            ),
+            "cabeza": [], "yo": None, "personas": 0,
+        }
+
+    cabeza = filas(
+        """SELECT r.* FROM ranking_en_unidad r
+            WHERE r.unidad_id = (SELECT unidad_id FROM colaborador WHERE id = %s)
+            ORDER BY r.posicion LIMIT %s""",
+        (yo, CABEZA_EN_UNIDAD),
+    )
+    return {
+        "disponible": True,
+        "umbral_anonimato": k,
+        "unidad": mio["unidad"],
+        "personas": mio["personas"],
+        "cabeza": _sin_ids(cabeza, yo),
+        "yo": mio,
+    }
+
+
+@app.get("/ranking/unidades", tags=["ranking"])
+def ranking_unidades(yo: UUID = Depends(colaborador_actual)):
+    """
+    Entre sedes y escuelas. Compara **promedios**, no totales: una sede grande no
+    gana por ser grande.
+
+    Es agregado, así que no expone a nadie; las unidades bajo el umbral se
+    pliegan igual que en el panel para que el total siga cuadrando.
+    """
+    return filas("SELECT * FROM ranking_unidades ORDER BY es_reservado, posicion")
 
 
 @app.get("/colaboradores", tags=["gestión"])

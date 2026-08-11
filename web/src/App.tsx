@@ -15,6 +15,7 @@ import { MiRuta } from "./pantallas/MiRuta";
 import { Modulo } from "./pantallas/Modulo";
 import { Panel } from "./pantallas/Panel";
 import { Quiz } from "./pantallas/Quiz";
+import { Ranking } from "./pantallas/Ranking";
 
 /**
  * Navegación.
@@ -33,7 +34,8 @@ type Vista =
   | { t: "evaluacion"; bloqueRutaId: string }
   | { t: "calibre"; bloqueRutaId: string; moduloId: string }
   | { t: "mesa" }
-  | { t: "panel" };
+  | { t: "panel" }
+  | { t: "ranking" };
 
 export function App() {
   const [conSesion, setConSesion] = useState(() => Boolean(token.leer()));
@@ -144,6 +146,17 @@ export function App() {
         bloqueRutaId={vista.bloqueRutaId}
         onVolver={() => { cargar(); setVista({ t: "bloque", bloqueRutaId: vista.bloqueRutaId }); }}
         onCambio={cargar}
+        onSalir={salir}
+      />
+    );
+
+  if (vista.t === "ranking")
+    return (
+      <Ranking
+        yo={yo}
+        totalBloques={ruta.length}
+        bloquesCompletos={completos}
+        onIrA={(s) => setVista(s === "ruta" ? { t: "ruta" } : { t: s })}
         onSalir={salir}
       />
     );

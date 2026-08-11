@@ -1,6 +1,6 @@
 import type { Yo } from "../api";
 
-export type Seccion = "ruta" | "mesa" | "panel";
+export type Seccion = "ruta" | "mesa" | "ranking" | "panel";
 
 /** Escalera de S-10. Se nombra el escalón: "nivel" ya significa nivel_estandar (glosario). */
 export const ESCALERA = [
@@ -68,6 +68,13 @@ export function Sidebar({ yo, abierto, bloques, completos, seccion = "ruta", onI
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="9" rx="1"/></svg>
             Mesa de comité
           </button>
+          <button
+            className={`nav-item ${seccion === "ranking" ? "activo" : ""}`}
+            onClick={() => onIrA?.("ranking")}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20V10M12 20V4M20 20v-6"/></svg>
+            Ranking
+          </button>
           {/* El panel aparece solo para quien tiene permiso institucional, que
               sale de la membresía de comité y no del rol (S-35). */}
           {yo.ve_panel_institucional && (
@@ -79,7 +86,7 @@ export function Sidebar({ yo, abierto, bloques, completos, seccion = "ruta", onI
               Panel institucional
             </button>
           )}
-          <div className="nav-proximo">Insignias, ranking y Plaza: en construcción</div>
+          <div className="nav-proximo">Insignias y Plaza: en construcción</div>
         </nav>
 
         <div className="persona-card">

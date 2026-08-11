@@ -113,6 +113,51 @@ export type Bloque = Omit<BloqueDeRuta, "modulos"> & {
   evaluacion_disponible: boolean;
 };
 
+export type FilaRanking = {
+  posicion: number;
+  nombre: string;
+  unidad?: string | null;
+  xp_ranking: number | string;
+  xp_acreditable: number | string;
+  xp_ludico: number | string;
+  escalon: string;
+  insignias: number;
+  personas: number;
+  /** Lo pone el servidor: los endpoints del ranking no devuelven identificadores. */
+  soy_yo: boolean;
+};
+
+export type RankingInstitucional = {
+  personas: number;
+  cabeza: FilaRanking[];
+  yo: FilaRanking | null;
+  /** Lo lúdico que el tope dejó fuera; se desbloquea avanzando la ruta. */
+  xp_de_juego_sin_contar: number;
+  xp_para_subir: number | null;
+};
+
+export type RankingUnidad = {
+  disponible: boolean;
+  umbral_anonimato: number;
+  motivo?: string;
+  unidad?: string;
+  personas: number;
+  cabeza: FilaRanking[];
+  yo: FilaRanking | null;
+};
+
+export type FilaUnidad = {
+  unidad: string;
+  tipo: string;
+  es_reservado: boolean;
+  personas: number;
+  xp_promedio: string | number;
+  insignias: number;
+  avance: string | number;
+  con_avance: string | number;
+  posicion: number | null;
+};
+
 export type PanelResumen = {
   personas: number;
   con_actividad: number;
@@ -537,6 +582,11 @@ export const api = {
     pedir<{ ya_estaba: boolean; xp_otorgado: number }>(`/modulos/${id}/completar`, {
       method: "POST",
     }),
+
+  /** Ranking: cabeza + tu posición. Nunca la escalera completa ni los últimos. */
+  ranking: () => pedir<RankingInstitucional>("/ranking"),
+  rankingMiUnidad: () => pedir<RankingUnidad>("/ranking/mi-unidad"),
+  rankingUnidades: () => pedir<FilaUnidad[]>("/ranking/unidades"),
 
   /** Panel institucional. Solo agregados: el dato por persona no se sirve. */
   panelResumen: () => pedir<PanelResumen>("/panel/resumen"),
