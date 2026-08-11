@@ -151,6 +151,9 @@ UNIDADES = [
     ("sede",               "Sede La Serena"),
     ("escuela",            "Escuela de Administración y Negocios"),
     ("escuela",            "Escuela de Informática y Telecomunicaciones"),
+    # Sede chica a propósito: con la población de prueba queda bajo el umbral
+    # de anonimato y sirve para ver el plegado del panel (Ley 21.719).
+    ("sede",               "Sede Chillán"),
 ]
 
 # -------------------------------------------------------------------- comités

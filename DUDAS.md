@@ -57,3 +57,13 @@ Lo que hay que resolver en la fase de contenido real, con AIEP:
 
 Está anotado también en `IDEAS-PULIDO.md` como trabajo pendiente del motor.
 
+---
+
+## Panel institucional
+
+| # | Pregunta | Default en funcionamiento |
+|---|---|---|
+| S-35 | ¿**Quién** debe ver el panel en producción? Hoy lo ve quien está en el Comité de Aseguramiento, el Comité Central o la Dirección Nacional — el permiso sale de la membresía de comité, no del cargo. | Ese criterio, cableado en la vista `permiso_institucional`. Si AIEP tiene otra política de acceso directivo, se cambia ahí. |
+| — | ¿El umbral de 5 personas es el que usa AIEP para reportería interna? La Ley 21.719 no fija un número; 5 es el estándar habitual de k-anonimato. | 5, en `fn_umbral_anonimato()`. |
+| — | ¿Se necesita **registro de acceso** al panel? En el levantamiento inicial se habló de trazar el acceso a detalle nominal; hoy el panel no expone detalle nominal, así que no hay nada que registrar. Si más adelante AIEP pide una vista nominal para acompañamiento, ahí sí hace falta el registro. | Sin registro, porque no hay dato personal que registrar. |
+

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { Yo } from "../api";
-import { Sidebar } from "./Sidebar";
+import { Sidebar, type Seccion } from "./Sidebar";
 
 /**
  * Shell de la aplicación: sidebar, barra superior y el hueco de la pantalla.
@@ -15,8 +15,8 @@ type Props = {
   bloques: number;
   completos: number;
   marcaPrueba?: boolean;
-  seccion?: "ruta" | "mesa";
-  onIrA?: (s: "ruta" | "mesa") => void;
+  seccion?: Seccion;
+  onIrA?: (s: Seccion) => void;
   onSalir: () => void;
   children: ReactNode;
 };

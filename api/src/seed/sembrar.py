@@ -212,6 +212,16 @@ def sembrar(conn) -> dict:
         generar_ruta(conn, colaborador_id=colaborador_id, cargo_id=cargo[codigo_cargo])
         ids[email] = colaborador_id
 
+    # ------------------------------------------- población del panel
+    # Con solo tres personas el panel institucional es correcto y está
+    # vacío: todos los grupos caen bajo el umbral de anonimato. Esta
+    # población sintética existe para poder verlo y verificarlo.
+    from .poblacion import sembrar_poblacion
+    resumen_poblacion = sembrar_poblacion(
+        conn, cargo=cargo, unidad=unidad, generar_ruta=generar_ruta
+    )
+    print(f"  población de prueba · {resumen_poblacion}", flush=True)
+
     return ids
 
 

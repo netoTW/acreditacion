@@ -1,13 +1,13 @@
 import type { BloqueDeRuta, Yo } from "../api";
 import { MapaRuta, pct } from "../componentes/MapaRuta";
 import { Marco } from "../componentes/Marco";
-import { ESCALERA, progresoDeEscalon } from "../componentes/Sidebar";
+import { ESCALERA, progresoDeEscalon, type Seccion } from "../componentes/Sidebar";
 
 type Props = {
   yo: Yo;
   bloques: BloqueDeRuta[];
   onAbrirBloque: (bloqueRutaId: string) => void;
-  onIrA: (s: "ruta" | "mesa") => void;
+  onIrA: (s: Seccion) => void;
   onSalir: () => void;
 };
 

@@ -113,6 +113,56 @@ export type Bloque = Omit<BloqueDeRuta, "modulos"> & {
   evaluacion_disponible: boolean;
 };
 
+export type PanelResumen = {
+  personas: number;
+  con_actividad: number;
+  activos_30d: number;
+  rutas_completas: number;
+  bloques: number;
+  bloques_completos: number;
+  bloques_criticos: number;
+  criticos_completos: number;
+  insignias: number;
+  intentos: number;
+  intentos_aprobados: number;
+  puntaje_promedio: string | number | null;
+  personas_en_riesgo: number;
+  personas_que_juegan: number;
+  personas_de_prueba: number;
+  avance_acreditacion: number;
+  avance_critico: number;
+  tasa_aprobacion: number | null;
+  umbral_anonimato: number;
+};
+
+export type FilaPanel = {
+  grupo: string;
+  tipo: string;
+  /** true = grupos bajo el umbral, plegados y sin nombre (Ley 21.719). */
+  es_reservado: boolean;
+  personas: number;
+  bloques: number;
+  bloques_completos: number;
+  con_actividad: number;
+  rutas_completas: number;
+  en_riesgo: number;
+  juegan: number;
+  intentos: number;
+  intentos_aprobados: number;
+};
+
+export type FilaDimension = {
+  dimension: string;
+  nombre: string;
+  bloques: number;
+  bloques_completos: number;
+  bloques_criticos: number;
+  en_riesgo: number;
+  intentos: number;
+  intentos_aprobados: number;
+  puntaje_promedio: string | number | null;
+};
+
 export type FrenteGestion = {
   clave: string;
   nombre: string;
@@ -487,6 +537,12 @@ export const api = {
     pedir<{ ya_estaba: boolean; xp_otorgado: number }>(`/modulos/${id}/completar`, {
       method: "POST",
     }),
+
+  /** Panel institucional. Solo agregados: el dato por persona no se sirve. */
+  panelResumen: () => pedir<PanelResumen>("/panel/resumen"),
+  panelPorUnidad: () => pedir<FilaPanel[]>("/panel/por-unidad"),
+  panelPorRol: () => pedir<FilaPanel[]>("/panel/por-rol"),
+  panelDimensiones: () => pedir<FilaDimension[]>("/panel/dimensiones"),
 
   /** D1: el escenario con su modelo completo. Sin la solución de ejemplo. */
   gestion: (bloqueRutaId: string) =>

@@ -38,6 +38,10 @@ from motor.calibre import puntuar_calibre
 from motor.mesa import cerrar_mesa, repartir
 from motor.quiz import puntuar_quiz
 
+# Cuánta gente devuelve el ranking. No es una preferencia estética: es lo que
+# hace que el endpoint siga respondiendo cuando la comunidad completa esté dentro.
+CABEZA_DEL_RANKING = int(os.environ.get("CABEZA_DEL_RANKING", "50"))
+
 DSN = os.environ["DATABASE_URL"]
 pool = ConnectionPool(DSN, min_size=1, max_size=10, open=True)
 identidad = proveedor_activo()
@@ -371,8 +375,12 @@ def ranking(yo: UUID = Depends(colaborador_actual)):
 
     Es agregado: nombre, unidad, XP y **conteo** de insignias. Nunca el nombre de las
     insignias de otro cargo, que filtraría su contenido (S-16).
+
+    Va acotado a la cabeza de la tabla: con 1.600 personas devolverlas todas ya es
+    una respuesta incómoda, y con 85.000 es una respuesta que nadie puede usar. El
+    ranking se lee arriba; el avance propio se ve en la ruta.
     """
-    return filas("SELECT * FROM ranking ORDER BY posicion")
+    return filas("SELECT * FROM ranking ORDER BY posicion LIMIT %s", (CABEZA_DEL_RANKING,))
 
 
 @app.get("/colaboradores", tags=["gestión"])
@@ -729,6 +737,68 @@ def abrir_mi_ruta(yo: UUID = Depends(colaborador_actual)):
             (yo,),
         ).fetchall()
     return {"bloques_abiertos": len(abiertos)}
+
+
+# ============================================== panel institucional
+#
+# Todo lo de acá exige `con_permiso_institucional` —membresía de comité, no
+# cargo (S-35)— y sirve SOLO agregados. La vista `metrica_colaborador`, que sí
+# tiene el dato por persona, no se expone por ningún endpoint.
+#
+# El umbral de anonimato de la Ley 21.719 no se aplica en estas funciones: lo
+# aplican las vistas. Escribir el filtro acá dejaría la puerta abierta a que una
+# consulta nueva lo olvide.
+
+
+@app.get("/panel/resumen", tags=["panel institucional"])
+def panel_resumen(yo: UUID = Depends(con_permiso_institucional)):
+    """El estado de la institución en una pantalla. Sin desglose y sin nombres."""
+    r = filas("SELECT * FROM panel_resumen")[0]
+    return {
+        **r,
+        "avance_acreditacion": (
+            round(r["bloques_completos"] / r["bloques"], 4) if r["bloques"] else 0.0
+        ),
+        "avance_critico": (
+            round(r["criticos_completos"] / r["bloques_criticos"], 4)
+            if r["bloques_criticos"] else 0.0
+        ),
+        "tasa_aprobacion": (
+            round(r["intentos_aprobados"] / r["intentos"], 4) if r["intentos"] else None
+        ),
+        "umbral_anonimato": filas("SELECT fn_umbral_anonimato() AS k")[0]["k"],
+    }
+
+
+@app.get("/panel/por-unidad", tags=["panel institucional"])
+def panel_por_unidad(yo: UUID = Depends(con_permiso_institucional)):
+    """
+    Avance por sede y escuela.
+
+    Las unidades con menos personas que el umbral **no aparecen con su nombre**:
+    se pliegan en una fila reservada, para que el total siga cuadrando sin
+    individualizar a nadie. Si ni siquiera plegadas llegan al umbral, esa fila
+    tampoco se muestra, y por eso la suma del desglose puede ser menor que el
+    total institucional. Es a propósito.
+    """
+    return filas("SELECT * FROM panel_por_unidad ORDER BY es_reservado, personas DESC")
+
+
+@app.get("/panel/por-rol", tags=["panel institucional"])
+def panel_por_rol(yo: UUID = Depends(con_permiso_institucional)):
+    """Lo mismo por rol, con el mismo umbral."""
+    return filas("SELECT * FROM panel_por_rol ORDER BY es_reservado, personas DESC")
+
+
+@app.get("/panel/dimensiones", tags=["panel institucional"])
+def panel_dimensiones(yo: UUID = Depends(con_permiso_institucional)):
+    """
+    Dónde se atora la institución.
+
+    No lleva umbral de anonimato porque no agrupa personas sino contenido: una
+    dimensión no identifica a nadie.
+    """
+    return filas("SELECT * FROM panel_por_dimension")
 
 
 # ============================================ juego de la dimensión (fase 2)

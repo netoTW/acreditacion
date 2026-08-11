@@ -13,6 +13,7 @@ import { LineaTiempo } from "./pantallas/LineaTiempo";
 import { Mesa } from "./pantallas/Mesa";
 import { MiRuta } from "./pantallas/MiRuta";
 import { Modulo } from "./pantallas/Modulo";
+import { Panel } from "./pantallas/Panel";
 import { Quiz } from "./pantallas/Quiz";
 
 /**
@@ -31,7 +32,8 @@ type Vista =
   | { t: "juego"; bloqueRutaId: string; clave: string }
   | { t: "evaluacion"; bloqueRutaId: string }
   | { t: "calibre"; bloqueRutaId: string; moduloId: string }
-  | { t: "mesa" };
+  | { t: "mesa" }
+  | { t: "panel" };
 
 export function App() {
   const [conSesion, setConSesion] = useState(() => Boolean(token.leer()));
@@ -146,6 +148,17 @@ export function App() {
       />
     );
 
+  if (vista.t === "panel")
+    return (
+      <Panel
+        yo={yo}
+        totalBloques={ruta.length}
+        bloquesCompletos={completos}
+        onIrA={(s) => setVista(s === "ruta" ? { t: "ruta" } : { t: s })}
+        onSalir={salir}
+      />
+    );
+
   if (vista.t === "mesa")
     return (
       <Mesa
@@ -205,7 +218,7 @@ export function App() {
       yo={yo}
       bloques={ruta}
       onAbrirBloque={(bloqueRutaId) => setVista({ t: "bloque", bloqueRutaId })}
-      onIrA={(s) => setVista(s === "mesa" ? { t: "mesa" } : { t: "ruta" })}
+      onIrA={(s) => setVista(s === "ruta" ? { t: "ruta" } : { t: s })}
       onSalir={salir}
     />
   );

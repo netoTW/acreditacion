@@ -49,6 +49,9 @@ class ProveedorDev:
                  JOIN cargo ca ON ca.id = c.cargo_id
                  LEFT JOIN unidad u ON u.id = c.unidad_id
                  LEFT JOIN permiso_institucional pi ON pi.colaborador_id = c.id
+                -- La población sintética del panel no se ofrece para entrar: existe
+                -- para que los agregados tengan volumen, no para actuar como ella.
+                WHERE NOT c.es_de_prueba
                 ORDER BY c.nombre"""
         ).fetchall()
         return [

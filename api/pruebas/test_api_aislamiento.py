@@ -28,6 +28,13 @@ DSN = os.environ.get(
 
 
 @pytest.fixture(scope="module")
+def conexion():
+    """Conexión directa, para contrastar lo que el panel dice contra lo que hay."""
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        yield conn
+
+
+@pytest.fixture(scope="module")
 def cliente():
     os.environ["MODO_DEV"] = "true"
     os.environ.setdefault("DATABASE_URL", DSN)
@@ -204,9 +211,9 @@ def test_el_panel_de_gestion_pide_permiso_institucional(cliente, apoyo, direccio
 
 
 def test_el_ranking_es_agregado_y_no_filtra_insignias_ajenas(cliente, apoyo):
-    """S-16: nombre, unidad, XP y conteo. Nunca el nombre de insignias de otro cargo."""
+    """S-16: nombre, unidad, XP y conteo. Nunca el nombre de insignias de otro rol."""
     filas = cliente.get("/ranking", headers=_cab(apoyo)).json()
-    assert len(filas) == 3
+    assert filas and len(filas) <= 50, "el ranking va acotado a la cabeza de la tabla"
     for f in filas:
         assert isinstance(f["insignias"], int)
         assert "medalla" not in f and "insignias_detalle" not in f
@@ -1419,3 +1426,110 @@ def test_las_cinco_dimensiones_ya_tienen_su_juego(cliente, apoyo):
         "VCM": "contrapartes", "ICI": "produccion",
     }
     assert len(set(juegos.values())) == 5, "cada dimensión lleva un juego DISTINTO"
+
+
+# ------------------------------------------ panel institucional (Ley 21.719)
+def test_el_panel_exige_permiso_institucional(cliente, apoyo, direccion):
+    """El permiso sale de la membresía de comité, no del rol (S-35)."""
+    for url in ("/panel/resumen", "/panel/por-unidad", "/panel/por-rol", "/panel/dimensiones"):
+        assert cliente.get(url, headers=_cab(apoyo)).status_code == 403, url
+        assert cliente.get(url).status_code == 401, url
+        assert cliente.get(url, headers=_cab(direccion)).status_code == 200, url
+
+
+def test_el_panel_no_devuelve_ni_un_dato_por_persona(cliente, direccion):
+    """
+    Cambia el sujeto: el panel mira a la institución. Si se colara un nombre, un
+    email o un id de colaborador, dejaría de ser un agregado.
+    """
+    import json
+    for url in ("/panel/resumen", "/panel/por-unidad", "/panel/por-rol", "/panel/dimensiones"):
+        crudo = json.dumps(cliente.get(url, headers=_cab(direccion)).json()).lower()
+        for filtrado in ("colaborador_id", "email", "@aiep", "nombre_persona"):
+            assert filtrado not in crudo, f"{url} filtró «{filtrado}»"
+
+
+def test_un_grupo_bajo_el_umbral_no_se_muestra_desglosado(cliente, direccion, conexion):
+    """
+    El candado de la Ley 21.719. Con n=1, decir «Sede X: 100% completado» es
+    publicar el dato de una persona identificable.
+    """
+    k = cliente.get("/panel/resumen", headers=_cab(direccion)).json()["umbral_anonimato"]
+
+    reales = {
+        f[0]: f[1] for f in conexion.execute(
+            """SELECT u.nombre, count(*) FROM colaborador c
+                 JOIN unidad u ON u.id = c.unidad_id GROUP BY 1"""
+        ).fetchall()
+    }
+    chicas = {n for n, cuantas in reales.items() if cuantas < k}
+    assert chicas, "el escenario de prueba necesita alguna unidad bajo el umbral"
+
+    filas = cliente.get("/panel/por-unidad", headers=_cab(direccion)).json()
+    nombrados = {f["grupo"] for f in filas if not f["es_reservado"]}
+    assert not (chicas & nombrados), f"se desglosaron unidades bajo el umbral: {chicas & nombrados}"
+    for f in filas:
+        assert f["personas"] >= k, "ninguna fila del panel puede describir a menos de k personas"
+
+
+def test_los_grupos_pequenos_se_pliegan_en_vez_de_desaparecer(cliente, direccion, conexion):
+    """
+    La otra forma de mentir con privacidad es sacar a la gente del denominador.
+    Los plegados siguen contando: o están en la fila reservada, o —si ni plegados
+    llegan al umbral— la diferencia con el total es explícita y verificable.
+    """
+    k = cliente.get("/panel/resumen", headers=_cab(direccion)).json()["umbral_anonimato"]
+    total = cliente.get("/panel/resumen", headers=_cab(direccion)).json()["personas"]
+    filas = cliente.get("/panel/por-unidad", headers=_cab(direccion)).json()
+
+    sumado = sum(f["personas"] for f in filas)
+    assert sumado <= total
+    # Lo que falta solo puede ser gente de grupos que ni plegados llegan al umbral.
+    assert total - sumado < k
+
+
+def test_el_resumen_cuadra_con_la_base(cliente, direccion, conexion):
+    r = cliente.get("/panel/resumen", headers=_cab(direccion)).json()
+    assert r["personas"] == conexion.execute("SELECT count(*) FROM colaborador").fetchone()[0]
+    assert r["insignias"] == conexion.execute("SELECT count(*) FROM insignia").fetchone()[0]
+    # El avance es derivado, no un contador guardado.
+    assert r["avance_acreditacion"] == round(r["bloques_completos"] / r["bloques"], 4)
+
+
+def test_toda_medalla_del_panel_tiene_su_intento_aprobado_detras(conexion):
+    """
+    La población sintética entra por el mismo camino que una persona real, así que
+    sembrar 120 recorridos es también una prueba de carga del invariante de ADR-005.
+    """
+    huerfanas = conexion.execute(
+        """SELECT count(*) FROM insignia i
+             JOIN intento_evaluacion ie ON ie.id = i.intento_evaluacion_id
+            WHERE ie.aprobado IS NOT TRUE OR ie.estado <> 'enviado'
+               OR ie.colaborador_id <> i.colaborador_id"""
+    ).fetchone()[0]
+    assert huerfanas == 0
+
+    ludico_acreditable = conexion.execute(
+        "SELECT count(*) FROM evento_gamificacion WHERE origen_tipo='juego' AND clase_xp='acreditable'"
+    ).fetchone()[0]
+    assert ludico_acreditable == 0
+
+
+def test_el_login_dev_no_ofrece_la_poblacion_sintetica(cliente, conexion):
+    """
+    La población del panel existe para dar volumen a los agregados, no para entrar
+    como ella. Si apareciera en el selector, el director tendría 123 tarjetas y
+    ninguna sería una persona del slice.
+    """
+    gente = cliente.get("/auth/dev/colaboradores").json()
+    total = conexion.execute("SELECT count(*) FROM colaborador").fetchone()[0]
+    de_prueba = conexion.execute(
+        "SELECT count(*) FROM colaborador WHERE es_de_prueba"
+    ).fetchone()[0]
+
+    assert de_prueba > 0, "el escenario necesita población sintética para probar esto"
+    assert len(gente) == total - de_prueba
+    assert {p["cargo"] for p in gente} == {
+        "Nivel 1 · Alta Dirección", "Nivel 2 · Liderazgo intermedio",
+        "Nivel 3 · Administrativo y apoyo",
+    }
