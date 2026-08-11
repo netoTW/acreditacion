@@ -26,6 +26,7 @@ from motor.juegos import JuegoNoCorresponde, juego_de
 from motor.linea_tiempo import cerrar_linea, repartir as repartir_linea
 from motor.cohorte import cerrar_cohorte, repartir as repartir_cohorte
 from motor.contrapartes import cerrar_mapa, repartir as repartir_mapa
+from motor.produccion import cerrar_cuadrante, repartir as repartir_cuadrante
 from motor.evaluacion import (
     DesafioPendiente, ModulosPendientes, SinReintentos, abrir_intento,
     cerrar_intento, responder,
@@ -884,6 +885,67 @@ def resultado_contrapartes(bloque_ruta_id: UUID, cuerpo: MapaTrazado,
         "descartes_correctos": r.descartes_correctos,
         "descartes_totales": r.descartes_totales,
         "mapa_limpio": r.mapa_limpio,
+        "puntos": r.puntos,
+        "xp_otorgado": r.xp_otorgado,
+        "ya_jugado_hoy": r.ya_jugado_hoy,
+        "revelacion": r.revelacion,
+    }
+
+
+class PiezaUbicada(BaseModel):
+    pieza_id: UUID
+    es_ici: bool
+    es_adscrita: bool
+
+
+class CuadranteCerrado(BaseModel):
+    ubicaciones: list[PiezaUbicada] = Field(min_length=1, max_length=10)
+
+
+@app.get("/bloques-ruta/{bloque_ruta_id}/juego/produccion", tags=["juegos"])
+def juego_produccion(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
+    """
+    Seis producciones y las líneas declaradas, **sin decir en qué casillero va cada una**.
+
+    El `detalle` de cada pieza es la única pista: dice con qué afiliación se
+    publicó y en qué condición estaba el autor.
+    """
+    _bloque_propio(bloque_ruta_id, yo)
+    with pool.connection() as conn:
+        try:
+            return repartir_cuadrante(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id)
+        except JuegoNoCorresponde as e:
+            raise HTTPException(409, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+
+
+@app.post("/bloques-ruta/{bloque_ruta_id}/juego/produccion/resultado", tags=["juegos"])
+def resultado_produccion(bloque_ruta_id: UUID, cuerpo: CuadranteCerrado,
+                         yo: UUID = Depends(colaborador_actual)):
+    """
+    Corrige los DOS ejes de cada pieza en el servidor y los cobra por separado.
+
+    Acertar que algo es investigación y equivocarse en de quién es sigue siendo
+    medio acierto: son dos juicios independientes y el puntaje lo refleja.
+    """
+    _bloque_propio(bloque_ruta_id, yo)
+    with pool.connection() as conn:
+        try:
+            r = cerrar_cuadrante(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id,
+                                 ubicaciones=[u.model_dump() for u in cuerpo.ubicaciones])
+        except JuegoNoCorresponde as e:
+            raise HTTPException(409, str(e))
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+    return {
+        "total": r.total,
+        "ejes_correctos": r.ejes_correctos,
+        "ejes_totales": r.ejes_totales,
+        "piezas_perfectas": r.piezas_perfectas,
+        "cuadrante_limpio": r.cuadrante_limpio,
         "puntos": r.puntos,
         "xp_otorgado": r.xp_otorgado,
         "ya_jugado_hoy": r.ya_jugado_hoy,

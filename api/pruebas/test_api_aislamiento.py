@@ -798,7 +798,8 @@ def test_el_bloque_dice_que_juego_le_toca(cliente, apoyo):
     assert juegos["CALIDAD"]["clave"] == "linea_tiempo"
     assert juegos["DOCENCIA"]["clave"] == "cohorte"
     assert juegos["VCM"]["clave"] == "contrapartes"
-    assert all(juegos[d] is None for d in ("GESTION", "ICI")), "faltan de la fase 2"
+    assert juegos["ICI"]["clave"] == "produccion"
+    assert juegos["GESTION"] is None, "falta de la fase 2"
 
 
 def test_la_linea_no_entrega_las_fechas_antes_de_ordenar(cliente, apoyo):
@@ -1163,3 +1164,137 @@ def test_abrir_mi_ruta_no_otorga_nada(cliente, direccion):
     ultimo = ruta[-1]["bloque_ruta_id"]
     assert cliente.post(f"/bloques-ruta/{ultimo}/intentos",
                         headers=_cab(direccion)).status_code == 409
+
+
+# ------------------------------ D5 · El cuadrante de la producción
+def _bloque_ici(cliente, token):
+    ruta = cliente.get("/mi/ruta", headers=_cab(token)).json()
+    return next(b for b in ruta if b["dimension"] == "ICI")["bloque_ruta_id"]
+
+
+def test_el_cuadrante_no_dice_donde_va_cada_pieza(cliente, apoyo):
+    t = cliente.get(
+        f"/bloques-ruta/{_bloque_ici(cliente, apoyo)}/juego/produccion", headers=_cab(apoyo)
+    ).json()
+
+    assert len(t["piezas"]) == 6 and t["lineas"]
+    for z in t["piezas"]:
+        assert "es_ici" not in z and "es_adscrita" not in z and "razon_ici" not in z
+        # El detalle es la única pista: sin él el tablero no se puede resolver.
+        assert len(z["detalle"].split()) >= 10
+
+
+def test_el_tablero_cubre_los_cuatro_cuadrantes(cliente, apoyo):
+    """
+    Un tablero al que le faltara un casillero enseñaría lo contrario de lo que el
+    juego busca: que hay cuadrantes que nunca se usan.
+    """
+    import psycopg
+    t = cliente.get(
+        f"/bloques-ruta/{_bloque_ici(cliente, apoyo)}/juego/produccion", headers=_cab(apoyo)
+    ).json()
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        combos = {
+            (f[0], f[1]) for f in conn.execute(
+                "SELECT es_ici, es_adscrita FROM produccion_ici WHERE id = ANY(%s::uuid[])",
+                ([z["pieza_id"] for z in t["piezas"]],),
+            ).fetchall()
+        }
+    assert combos == {(True, True), (True, False), (False, True), (False, False)}
+
+
+def _clave_del_cuadrante(t):
+    import psycopg
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        filas = conn.execute(
+            "SELECT id, es_ici, es_adscrita FROM produccion_ici WHERE id = ANY(%s::uuid[])",
+            ([z["pieza_id"] for z in t["piezas"]],),
+        ).fetchall()
+    return {str(f[0]): (f[1], f[2]) for f in filas}
+
+
+def test_ubicar_bien_las_seis_deja_el_registro_depurado(cliente, apoyo):
+    bid = _bloque_ici(cliente, apoyo)
+    t = cliente.get(f"/bloques-ruta/{bid}/juego/produccion", headers=_cab(apoyo)).json()
+    clave = _clave_del_cuadrante(t)
+
+    r = cliente.post(
+        f"/bloques-ruta/{bid}/juego/produccion/resultado", headers=_cab(apoyo),
+        json={"ubicaciones": [
+            {"pieza_id": z["pieza_id"], "es_ici": clave[z["pieza_id"]][0],
+             "es_adscrita": clave[z["pieza_id"]][1]}
+            for z in t["piezas"]
+        ]},
+    ).json()
+
+    assert r["ejes_correctos"] == r["ejes_totales"] == 12
+    assert r["piezas_perfectas"] == 6 and r["cuadrante_limpio"] is True
+    assert r["puntos"] == 12 * 25 + 60
+
+
+def test_los_dos_ejes_se_cobran_por_separado(cliente, apoyo):
+    """
+    El corazón de D5: acertar que algo es investigación y equivocarse en de quién
+    es sigue siendo medio acierto. Si el puntaje fuera todo o nada, el juego
+    fingiría que el juicio es uno solo.
+    """
+    bid = _bloque_ici(cliente, apoyo)
+    t = cliente.get(f"/bloques-ruta/{bid}/juego/produccion", headers=_cab(apoyo)).json()
+    clave = _clave_del_cuadrante(t)
+
+    r = cliente.post(
+        f"/bloques-ruta/{bid}/juego/produccion/resultado", headers=_cab(apoyo),
+        json={"ubicaciones": [
+            # el eje ICI correcto, el de adscripción invertido en todas
+            {"pieza_id": z["pieza_id"], "es_ici": clave[z["pieza_id"]][0],
+             "es_adscrita": not clave[z["pieza_id"]][1]}
+            for z in t["piezas"]
+        ]},
+    ).json()
+
+    assert r["ejes_correctos"] == 6, "seis de doce: un eje entero bien"
+    assert r["piezas_perfectas"] == 0, "ninguna pieza quedó en su casillero"
+    assert r["cuadrante_limpio"] is False
+    assert r["puntos"] == 6 * 25, "medio acierto vale, y el bono no"
+
+
+def test_el_cuadrante_revela_cual_de_los_dos_ejes_fallaste(cliente, apoyo):
+    bid = _bloque_ici(cliente, apoyo)
+    t = cliente.get(f"/bloques-ruta/{bid}/juego/produccion", headers=_cab(apoyo)).json()
+    clave = _clave_del_cuadrante(t)
+
+    r = cliente.post(
+        f"/bloques-ruta/{bid}/juego/produccion/resultado", headers=_cab(apoyo),
+        json={"ubicaciones": [
+            {"pieza_id": z["pieza_id"], "es_ici": not clave[z["pieza_id"]][0],
+             "es_adscrita": clave[z["pieza_id"]][1]}
+            for z in t["piezas"]
+        ]},
+    ).json()
+
+    for x in r["revelacion"]:
+        assert x["acerto_ici"] is False and x["acerto_adscripcion"] is True
+        assert x["razon_ici"] and x["razon_adscripcion"]
+        assert x["cuenta_para_el_informe"] == (x["es_ici"] and x["es_adscrita"])
+
+
+def test_el_cuadrante_de_otra_dimension_y_de_otro_rol_no_se_abre(cliente, apoyo, direccion):
+    propio = _bloque_calidad(cliente, apoyo)
+    assert cliente.get(f"/bloques-ruta/{propio}/juego/produccion",
+                       headers=_cab(apoyo)).status_code == 409
+    ajeno = _bloque_ici(cliente, direccion)
+    assert cliente.get(f"/bloques-ruta/{ajeno}/juego/produccion",
+                       headers=_cab(apoyo)).status_code == 404
+
+
+def test_el_cuadrante_es_ludico_y_no_toca_lo_acreditable(cliente, apoyo):
+    bid = _bloque_ici(cliente, apoyo)
+    antes = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    t = cliente.get(f"/bloques-ruta/{bid}/juego/produccion", headers=_cab(apoyo)).json()
+    cliente.post(f"/bloques-ruta/{bid}/juego/produccion/resultado", headers=_cab(apoyo),
+                 json={"ubicaciones": [{"pieza_id": z["pieza_id"], "es_ici": True,
+                                        "es_adscrita": True} for z in t["piezas"]]})
+    despues = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    assert despues["xp_acreditable"] == antes["xp_acreditable"]
+    assert despues["insignias"] == antes["insignias"]
+    assert despues["escalon"] == antes["escalon"]

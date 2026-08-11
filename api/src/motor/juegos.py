@@ -32,7 +32,12 @@ JUEGOS = {
         "nombre": "El mapa de contrapartes",
         "descripcion": "Tiende el vínculo que se sostiene y deja fuera el que no",
     },
-    # Fase 2, pendientes: GESTION, ICI.
+    "ICI": {
+        "clave": "produccion",
+        "nombre": "El cuadrante de la producción",
+        "descripcion": "Decide si es investigación y, por separado, si la institución puede reclamarla",
+    },
+    # Fase 2, pendiente: GESTION.
 }
 
 

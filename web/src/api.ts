@@ -113,6 +113,44 @@ export type Bloque = Omit<BloqueDeRuta, "modulos"> & {
   evaluacion_disponible: boolean;
 };
 
+export type PiezaProduccion = {
+  pieza_id: string;
+  codigo: string;
+  titulo: string;
+  tipo: string;
+  detalle: string;
+};
+
+export type TableroProduccion = {
+  juego: string;
+  lineas: { clave: string; nombre: string; descripcion: string }[];
+  piezas: PiezaProduccion[];
+};
+
+export type ResultadoCuadrante = {
+  total: number;
+  ejes_correctos: number;
+  ejes_totales: number;
+  piezas_perfectas: number;
+  cuadrante_limpio: boolean;
+  puntos: number;
+  xp_otorgado: number;
+  ya_jugado_hoy: boolean;
+  revelacion: {
+    pieza_id: string;
+    titulo: string;
+    tipo: string;
+    acerto_ici: boolean;
+    acerto_adscripcion: boolean;
+    es_ici: boolean;
+    es_adscrita: boolean;
+    cuenta_para_el_informe: boolean;
+    linea: string | null;
+    razon_ici: string;
+    razon_adscripcion: string;
+  }[];
+};
+
 export type MapaRepartido = {
   juego: string;
   actores: { actor_id: string; codigo: string; nombre: string; tipo: string; descripcion: string }[];
@@ -399,6 +437,20 @@ export const api = {
   completarModulo: (id: string) =>
     pedir<{ ya_estaba: boolean; xp_otorgado: number }>(`/modulos/${id}/completar`, {
       method: "POST",
+    }),
+
+  /** D5: seis producciones, SIN decir en qué casillero va cada una. */
+  produccion: (bloqueRutaId: string) =>
+    pedir<TableroProduccion>(`/bloques-ruta/${bloqueRutaId}/juego/produccion`),
+
+  /** Los dos ejes viajan por separado y el servidor los cobra por separado. */
+  cerrarProduccion: (
+    bloqueRutaId: string,
+    ubicaciones: { pieza_id: string; es_ici: boolean; es_adscrita: boolean }[],
+  ) =>
+    pedir<ResultadoCuadrante>(`/bloques-ruta/${bloqueRutaId}/juego/produccion/resultado`, {
+      method: "POST",
+      body: JSON.stringify({ ubicaciones }),
     }),
 
   /** D4: seis actores y seis acciones, SIN decir cuál va con cuál. */

@@ -287,3 +287,35 @@ def test_un_actor_sin_vinculo_sin_razon_se_rechaza():
     finally:
         juegos.ACTORES = original
     assert any("razón no explica" in e for e in errores)
+
+
+def test_el_catalogo_de_produccion_cubre_los_cuatro_cuadrantes():
+    from generador.juegos import validar_produccion
+    assert validar_produccion() == []
+
+
+def test_una_produccion_que_no_es_ici_no_puede_declarar_linea():
+    """Colgar material docente de una línea de investigación es el error que se busca."""
+    import generador.juegos as juegos
+    original = juegos.PRODUCCIONES
+    juegos.PRODUCCIONES = [
+        (c, t, tp, d, ici, ads, ("educacion" if not ici else ln), ri, ra)
+        for c, t, tp, d, ici, ads, ln, ri, ra in original
+    ]
+    try:
+        errores = juegos.validar_produccion()
+    finally:
+        juegos.PRODUCCIONES = original
+    assert any("no es producción ICI y aun así declara una línea" in e for e in errores)
+
+
+def test_un_cuadrante_vacio_se_rechaza():
+    import generador.juegos as juegos
+    original = juegos.PRODUCCIONES
+    # Se dejan fuera todas las que son ICI y no adscritas.
+    juegos.PRODUCCIONES = [p for p in original if not (p[4] and not p[5])]
+    try:
+        errores = juegos.validar_produccion()
+    finally:
+        juegos.PRODUCCIONES = original
+    assert any("cuadrante (ICI=True, adscrita=False)" in e for e in errores)

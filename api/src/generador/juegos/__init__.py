@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from .cohortes import CASOS as CASOS_COHORTE
 from .contrapartes import ACCIONES, ACTORES
+from .produccion import LINEAS, PRODUCCIONES
 
 # Margen mínimo entre la brecha del tramo que se rompe y la del segundo peor.
 # Sin esto se puede colar un caso donde dos tramos están igual de mal y el juego
@@ -176,12 +177,71 @@ def validar_contrapartes() -> list[str]:
     return errores
 
 
+# El tablero de D5 toma una pieza de cada cuadrante antes de completar al azar,
+# así que cada cuadrante necesita stock propio o las partidas se repetirían.
+MINIMO_POR_CUADRANTE = 3
+
+
+def validar_produccion() -> list[str]:
+    """
+    Que los cuatro cuadrantes existan y que cada pieza justifique SUS DOS ejes.
+
+    La regla de fondo: una razón sola no sirve. Si el contenido explica por qué
+    algo es investigación pero no por qué es —o no es— de la institución, el juego
+    puede premiar una respuesta correcta por un motivo equivocado.
+    """
+    errores = []
+    claves = {l[0] for l in LINEAS}
+    if len(claves) != len(LINEAS):
+        errores.append("hay líneas de investigación con la clave repetida")
+    if not LINEAS:
+        errores.append("sin líneas declaradas el tablero pierde su referencia")
+
+    codigos = set()
+    cuadrantes = {}
+
+    for (codigo, titulo, tipo, detalle, es_ici, es_adscrita, linea,
+         razon_ici, razon_adscripcion) in PRODUCCIONES:
+        if codigo in codigos:
+            errores.append(f"{codigo}: el código está repetido")
+        codigos.add(codigo)
+
+        cuadrantes[(es_ici, es_adscrita)] = cuadrantes.get((es_ici, es_adscrita), 0) + 1
+
+        # Lo que no es producción ICI no puede colgar de una línea de investigación.
+        if linea is not None and not es_ici:
+            errores.append(f"{codigo}: no es producción ICI y aun así declara una línea")
+        if linea is not None and linea not in claves:
+            errores.append(f"{codigo}: cita la línea «{linea}», que no está declarada")
+
+        if len((detalle or "").split()) < 10:
+            errores.append(
+                f"{codigo}: el detalle es la única pista del tablero y no alcanza para decidir"
+            )
+        for campo, texto in (("razon_ici", razon_ici),
+                             ("razon_adscripcion", razon_adscripcion)):
+            if len((texto or "").split()) < 6:
+                errores.append(f"{codigo}: «{campo}» no justifica su eje")
+
+    for es_ici in (True, False):
+        for es_adscrita in (True, False):
+            cuantas = cuadrantes.get((es_ici, es_adscrita), 0)
+            if cuantas < MINIMO_POR_CUADRANTE:
+                errores.append(
+                    f"el cuadrante (ICI={es_ici}, adscrita={es_adscrita}) tiene "
+                    f"{cuantas} piezas y necesita al menos {MINIMO_POR_CUADRANTE}"
+                )
+
+    return errores
+
+
 def validar_juegos() -> list[str]:
     """Todo el contenido de juegos, de una. Lo llama el seed antes de integrar."""
     errores = []
     for caso in CASOS_COHORTE:
         errores.extend(validar_caso_cohorte(caso))
     errores.extend(validar_contrapartes())
+    errores.extend(validar_produccion())
     return errores
 
 
@@ -240,8 +300,36 @@ def integrar_juegos(conn) -> dict:
             (codigo, nombre, tipo, descripcion, accion, razon),
         )
 
+    for clave, nombre, descripcion in LINEAS:
+        conn.execute(
+            """INSERT INTO linea_ici (clave, nombre, descripcion) VALUES (%s,%s,%s)
+               ON CONFLICT (clave) DO UPDATE
+                 SET nombre = EXCLUDED.nombre, descripcion = EXCLUDED.descripcion""",
+            (clave, nombre, descripcion),
+        )
+
+    for (codigo, titulo, tipo, detalle, es_ici, es_adscrita, linea,
+         razon_ici, razon_adscripcion) in PRODUCCIONES:
+        conn.execute(
+            """INSERT INTO produccion_ici (codigo, titulo, tipo, detalle, es_ici,
+                                           es_adscrita, linea_clave, razon_ici,
+                                           razon_adscripcion)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (codigo) DO UPDATE
+                 SET titulo = EXCLUDED.titulo, tipo = EXCLUDED.tipo,
+                     detalle = EXCLUDED.detalle, es_ici = EXCLUDED.es_ici,
+                     es_adscrita = EXCLUDED.es_adscrita,
+                     linea_clave = EXCLUDED.linea_clave,
+                     razon_ici = EXCLUDED.razon_ici,
+                     razon_adscripcion = EXCLUDED.razon_adscripcion""",
+            (codigo, titulo, tipo, detalle, es_ici, es_adscrita, linea,
+             razon_ici, razon_adscripcion),
+        )
+
     return {
         "casos_cohorte": len(CASOS_COHORTE),
         "acciones": len(ACCIONES),
         "actores": len(ACTORES),
+        "lineas": len(LINEAS),
+        "producciones": len(PRODUCCIONES),
     }
