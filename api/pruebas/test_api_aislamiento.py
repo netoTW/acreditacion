@@ -797,7 +797,8 @@ def test_el_bloque_dice_que_juego_le_toca(cliente, apoyo):
     # mapa que sirve la API, la prueba pasaría con el registro vacío.
     assert juegos["CALIDAD"]["clave"] == "linea_tiempo"
     assert juegos["DOCENCIA"]["clave"] == "cohorte"
-    assert all(juegos[d] is None for d in ("GESTION", "VCM", "ICI")), "faltan de la fase 2"
+    assert juegos["VCM"]["clave"] == "contrapartes"
+    assert all(juegos[d] is None for d in ("GESTION", "ICI")), "faltan de la fase 2"
 
 
 def test_la_linea_no_entrega_las_fechas_antes_de_ordenar(cliente, apoyo):
@@ -1013,3 +1014,152 @@ def test_la_cohorte_es_ludica_y_no_toca_lo_acreditable(cliente, apoyo):
     assert despues["xp_acreditable"] == antes["xp_acreditable"]
     assert despues["insignias"] == antes["insignias"]
     assert despues["escalon"] == antes["escalon"]
+
+
+# ------------------------------------------- D4 · El mapa de contrapartes
+def _bloque_vcm(cliente, token):
+    ruta = cliente.get("/mi/ruta", headers=_cab(token)).json()
+    return next(b for b in ruta if b["dimension"] == "VCM")["bloque_ruta_id"]
+
+
+def test_el_mapa_no_dice_cual_va_con_cual(cliente, apoyo):
+    mapa = cliente.get(
+        f"/bloques-ruta/{_bloque_vcm(cliente, apoyo)}/juego/contrapartes", headers=_cab(apoyo)
+    ).json()
+
+    assert len(mapa["actores"]) == 6 and len(mapa["acciones"]) == 6
+    for a in mapa["actores"]:
+        assert "accion_clave" not in a and "razon" not in a
+
+
+def test_el_mapa_reparte_mas_acciones_de_las_que_usa(cliente, apoyo):
+    """
+    Sin señuelos, el tablero se termina por descarte: tendidos los primeros
+    vínculos, los que quedan calzan solos.
+    """
+    import psycopg
+    mapa = cliente.get(
+        f"/bloques-ruta/{_bloque_vcm(cliente, apoyo)}/juego/contrapartes", headers=_cab(apoyo)
+    ).json()
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        usadas = {
+            f[0] for f in conn.execute(
+                """SELECT accion_clave FROM actor_externo
+                    WHERE id = ANY(%s::uuid[]) AND accion_clave IS NOT NULL""",
+                ([a["actor_id"] for a in mapa["actores"]],),
+            ).fetchall()
+        }
+    repartidas = {a["clave"] for a in mapa["acciones"]}
+    assert usadas < repartidas, "no hay acciones señuelo"
+    assert len(usadas) == 4, "cuatro vínculos con acciones distintas entre sí"
+
+
+def test_el_mapa_trae_actores_que_no_son_contraparte(cliente, apoyo):
+    """El descarte es la mitad del juego: sin actores que sobren, no hay qué decidir."""
+    import psycopg
+    mapa = cliente.get(
+        f"/bloques-ruta/{_bloque_vcm(cliente, apoyo)}/juego/contrapartes", headers=_cab(apoyo)
+    ).json()
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        sin_vinculo = conn.execute(
+            """SELECT count(*) FROM actor_externo
+                WHERE id = ANY(%s::uuid[]) AND accion_clave IS NULL""",
+            ([a["actor_id"] for a in mapa["actores"]],),
+        ).fetchone()[0]
+    assert sin_vinculo == 2
+
+
+def _clave_del_mapa(mapa):
+    import psycopg
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        filas = conn.execute(
+            "SELECT id, accion_clave FROM actor_externo WHERE id = ANY(%s::uuid[])",
+            ([a["actor_id"] for a in mapa["actores"]],),
+        ).fetchall()
+    return {str(f[0]): f[1] for f in filas}
+
+
+def test_el_mapa_completo_da_mapa_limpio(cliente, apoyo):
+    bid = _bloque_vcm(cliente, apoyo)
+    mapa = cliente.get(f"/bloques-ruta/{bid}/juego/contrapartes", headers=_cab(apoyo)).json()
+    clave = _clave_del_mapa(mapa)
+
+    r = cliente.post(
+        f"/bloques-ruta/{bid}/juego/contrapartes/resultado", headers=_cab(apoyo),
+        json={"vinculos": [{"actor_id": a["actor_id"], "accion_clave": clave[a["actor_id"]]}
+                           for a in mapa["actores"]]},
+    ).json()
+
+    assert r["aciertos"] == 6 and r["mapa_limpio"] is True
+    assert r["descartes_correctos"] == r["descartes_totales"] == 2
+    assert r["puntos"] == 6 * 50 + 60
+    assert all(x["razon"] for x in r["revelacion"])
+
+
+def test_atar_un_proveedor_a_una_accion_lo_cuenta_como_error(cliente, apoyo):
+    """
+    El error que el juego existe para desarmar: contar como convenio lo que es
+    una compra. Tiene que costar puntos, no pasar desapercibido.
+    """
+    bid = _bloque_vcm(cliente, apoyo)
+    mapa = cliente.get(f"/bloques-ruta/{bid}/juego/contrapartes", headers=_cab(apoyo)).json()
+    clave = _clave_del_mapa(mapa)
+    una_accion = mapa["acciones"][0]["clave"]
+
+    r = cliente.post(
+        f"/bloques-ruta/{bid}/juego/contrapartes/resultado", headers=_cab(apoyo),
+        json={"vinculos": [
+            # a los que no son contraparte se les ata una acción cualquiera
+            {"actor_id": a["actor_id"],
+             "accion_clave": clave[a["actor_id"]] or una_accion}
+            for a in mapa["actores"]
+        ]},
+    ).json()
+
+    assert r["descartes_correctos"] == 0 and r["descartes_totales"] == 2
+    assert r["mapa_limpio"] is False
+    assert r["aciertos"] == 4, "los cuatro vínculos reales siguen valiendo"
+
+
+def test_el_mapa_de_otra_dimension_y_de_otro_rol_no_se_abre(cliente, apoyo, direccion):
+    propio_pero_ajeno = _bloque_calidad(cliente, apoyo)     # ahí vive la Línea de tiempo
+    assert cliente.get(f"/bloques-ruta/{propio_pero_ajeno}/juego/contrapartes",
+                       headers=_cab(apoyo)).status_code == 409
+    de_otro = _bloque_vcm(cliente, direccion)
+    assert cliente.get(f"/bloques-ruta/{de_otro}/juego/contrapartes",
+                       headers=_cab(apoyo)).status_code == 404
+
+
+def test_el_mapa_es_ludico_y_no_toca_lo_acreditable(cliente, apoyo):
+    bid = _bloque_vcm(cliente, apoyo)
+    antes = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    mapa = cliente.get(f"/bloques-ruta/{bid}/juego/contrapartes", headers=_cab(apoyo)).json()
+    cliente.post(f"/bloques-ruta/{bid}/juego/contrapartes/resultado", headers=_cab(apoyo),
+                 json={"vinculos": [{"actor_id": a["actor_id"], "accion_clave": None}
+                                    for a in mapa["actores"]]})
+    despues = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    assert despues["xp_acreditable"] == antes["xp_acreditable"]
+    assert despues["insignias"] == antes["insignias"]
+    assert despues["escalon"] == antes["escalon"]
+
+
+def test_abrir_mi_ruta_no_otorga_nada(cliente, direccion):
+    """
+    El atajo de desarrollo levanta el candado de secuencia y NADA más: si además
+    marcara progreso, sería una ruta de código que produce completitud sin haber
+    aprobado, que es exactamente lo que el sistema existe para impedir.
+    """
+    antes = cliente.get("/mi/estado", headers=_cab(direccion)).json()
+    r = cliente.post("/auth/dev/abrir-mi-ruta", headers=_cab(direccion))
+    assert r.status_code == 200
+
+    ruta = cliente.get("/mi/ruta", headers=_cab(direccion)).json()
+    assert all(b["estado"] != "bloqueado" for b in ruta)
+
+    despues = cliente.get("/mi/estado", headers=_cab(direccion)).json()
+    assert despues == antes, "abrir la ruta no puede mover XP, insignias ni escalón"
+
+    # Y el bloque recién abierto sigue exigiendo su recorrido.
+    ultimo = ruta[-1]["bloque_ruta_id"]
+    assert cliente.post(f"/bloques-ruta/{ultimo}/intentos",
+                        headers=_cab(direccion)).status_code == 409

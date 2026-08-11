@@ -25,6 +25,7 @@ from motor.desafio import NoCritica, resolver_desafio, ver_desafio
 from motor.juegos import JuegoNoCorresponde, juego_de
 from motor.linea_tiempo import cerrar_linea, repartir as repartir_linea
 from motor.cohorte import cerrar_cohorte, repartir as repartir_cohorte
+from motor.contrapartes import cerrar_mapa, repartir as repartir_mapa
 from motor.evaluacion import (
     DesafioPendiente, ModulosPendientes, SinReintentos, abrir_intento,
     cerrar_intento, responder,
@@ -693,6 +694,41 @@ def clave_de_respuestas(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_act
     )
 
 
+@app.post("/auth/dev/abrir-mi-ruta", tags=["identidad"])
+def abrir_mi_ruta(yo: UUID = Depends(colaborador_actual)):
+    """
+    **Solo para verificar el slice.** Deja disponibles todos los bloques de TU ruta.
+
+    Existe por una razón concreta: los juegos por dimensión viven cada uno en su
+    bloque, y ninguna dimensión salvo la primera de cada rol está abierta al
+    empezar. Sin esto, revisar el juego de Vinculación exige completar dos bloques
+    enteros antes de poder verlo.
+
+    Doble candado: `MODO_DEV=true` y solo la ruta propia —no recibe
+    `colaborador_id`, como todo el resto (I-10)—.
+
+    **No otorga nada.** No toca XP, ni insignias, ni marca módulos vistos: solo
+    levanta el candado de secuencia. Un bloque abierto así sigue exigiendo recorrer
+    sus módulos y aprobar su evaluación para dar la medalla. Se elimina antes de
+    producción (tarea D8).
+    """
+    if os.environ.get("MODO_DEV", "").lower() != "true":
+        raise HTTPException(403, "solo disponible con MODO_DEV=true")
+
+    with pool.connection() as conn:
+        abiertos = conn.execute(
+            """UPDATE bloque_ruta br
+                  SET estado = 'disponible'
+                 FROM ruta r
+                WHERE r.id = br.ruta_id
+                  AND r.colaborador_id = %s
+                  AND br.estado = 'bloqueado'
+             RETURNING br.id""",
+            (yo,),
+        ).fetchall()
+    return {"bloques_abiertos": len(abiertos)}
+
+
 # ============================================ juego de la dimensión (fase 2)
 class LineaCerrada(BaseModel):
     """El orden en que quedaron las cartas. Cuál era el real lo pone el servidor."""
@@ -792,6 +828,62 @@ def resultado_cohorte(bloque_ruta_id: UUID, cuerpo: PartidaCohorte,
         "tramos_correctos": r.tramos_correctos,
         "indicadores_correctos": r.indicadores_correctos,
         "lectura_limpia": r.lectura_limpia,
+        "puntos": r.puntos,
+        "xp_otorgado": r.xp_otorgado,
+        "ya_jugado_hoy": r.ya_jugado_hoy,
+        "revelacion": r.revelacion,
+    }
+
+
+class VinculoTrazado(BaseModel):
+    actor_id: UUID
+    # None es una respuesta: «este actor no es contraparte de vinculación».
+    accion_clave: Optional[str] = None
+
+
+class MapaTrazado(BaseModel):
+    vinculos: list[VinculoTrazado] = Field(min_length=1, max_length=10)
+
+
+@app.get("/bloques-ruta/{bloque_ruta_id}/juego/contrapartes", tags=["juegos"])
+def juego_contrapartes(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
+    """
+    Seis actores y seis acciones, **sin decir cuál va con cuál**.
+
+    Se reparten más acciones de las que se usan: sin señuelos, el mapa se termina
+    por descarte una vez tendidos los primeros vínculos.
+    """
+    _bloque_propio(bloque_ruta_id, yo)
+    with pool.connection() as conn:
+        try:
+            return repartir_mapa(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id)
+        except JuegoNoCorresponde as e:
+            raise HTTPException(409, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+
+
+@app.post("/bloques-ruta/{bloque_ruta_id}/juego/contrapartes/resultado", tags=["juegos"])
+def resultado_contrapartes(bloque_ruta_id: UUID, cuerpo: MapaTrazado,
+                           yo: UUID = Depends(colaborador_actual)):
+    """Corrige el mapa en el servidor. XP lúdico, con su cupo diario por bloque."""
+    _bloque_propio(bloque_ruta_id, yo)
+    with pool.connection() as conn:
+        try:
+            r = cerrar_mapa(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id,
+                            vinculos=[v.model_dump() for v in cuerpo.vinculos])
+        except JuegoNoCorresponde as e:
+            raise HTTPException(409, str(e))
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+    return {
+        "total": r.total,
+        "aciertos": r.aciertos,
+        "descartes_correctos": r.descartes_correctos,
+        "descartes_totales": r.descartes_totales,
+        "mapa_limpio": r.mapa_limpio,
         "puntos": r.puntos,
         "xp_otorgado": r.xp_otorgado,
         "ya_jugado_hoy": r.ya_jugado_hoy,

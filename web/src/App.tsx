@@ -6,6 +6,7 @@ import { Desafio } from "./pantallas/Desafio";
 import { Evaluacion } from "./pantallas/Evaluacion";
 import { Ingreso } from "./pantallas/Ingreso";
 import { Cohorte } from "./pantallas/Cohorte";
+import { Contrapartes } from "./pantallas/Contrapartes";
 import { LineaTiempo } from "./pantallas/LineaTiempo";
 import { Mesa } from "./pantallas/Mesa";
 import { MiRuta } from "./pantallas/MiRuta";
@@ -115,6 +116,7 @@ export function App() {
       onSalir: salir,
     };
     if (vista.clave === "cohorte") return <Cohorte {...propios} />;
+    if (vista.clave === "contrapartes") return <Contrapartes {...propios} />;
     return <LineaTiempo {...propios} />;
   }
 

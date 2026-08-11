@@ -113,6 +113,33 @@ export type Bloque = Omit<BloqueDeRuta, "modulos"> & {
   evaluacion_disponible: boolean;
 };
 
+export type MapaRepartido = {
+  juego: string;
+  actores: { actor_id: string; codigo: string; nombre: string; tipo: string; descripcion: string }[];
+  acciones: { clave: string; nombre: string; descripcion: string }[];
+};
+
+export type ResultadoMapa = {
+  total: number;
+  aciertos: number;
+  descartes_correctos: number;
+  descartes_totales: number;
+  mapa_limpio: boolean;
+  puntos: number;
+  xp_otorgado: number;
+  ya_jugado_hoy: boolean;
+  revelacion: {
+    actor_id: string;
+    nombre: string;
+    acerto: boolean;
+    ato_en: string | null;
+    accion_correcta: string | null;
+    accion_nombre: string | null;
+    es_contraparte: boolean;
+    razon: string;
+  }[];
+};
+
 export type CasoCohorte = {
   caso_id: string;
   codigo: string;
@@ -372,6 +399,20 @@ export const api = {
   completarModulo: (id: string) =>
     pedir<{ ya_estaba: boolean; xp_otorgado: number }>(`/modulos/${id}/completar`, {
       method: "POST",
+    }),
+
+  /** D4: seis actores y seis acciones, SIN decir cuál va con cuál. */
+  contrapartes: (bloqueRutaId: string) =>
+    pedir<MapaRepartido>(`/bloques-ruta/${bloqueRutaId}/juego/contrapartes`),
+
+  /** `accion_clave: null` es una respuesta: «este actor no es contraparte». */
+  cerrarContrapartes: (
+    bloqueRutaId: string,
+    vinculos: { actor_id: string; accion_clave: string | null }[],
+  ) =>
+    pedir<ResultadoMapa>(`/bloques-ruta/${bloqueRutaId}/juego/contrapartes/resultado`, {
+      method: "POST",
+      body: JSON.stringify({ vinculos }),
     }),
 
   /** D2: tres cohortes con su referencia, SIN el tramo de quiebre. */

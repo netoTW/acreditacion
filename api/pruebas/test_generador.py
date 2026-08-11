@@ -265,3 +265,25 @@ def test_una_cohorte_que_crece_se_rechaza():
     malo = deepcopy(CASOS[0])
     malo["etapas"][3]["valor"] = malo["etapas"][2]["valor"] + 10
     assert any("crece" in e for e in validar_caso_cohorte(malo))
+
+
+def test_el_catalogo_de_contrapartes_da_para_armar_mapas():
+    from generador.juegos import validar_contrapartes
+    assert validar_contrapartes() == []
+
+
+def test_un_actor_sin_vinculo_sin_razon_se_rechaza():
+    """
+    Descartar sin explicación enseña a descartar de memoria. La razón es lo que
+    convierte «este no va» en un criterio.
+    """
+    import generador.juegos as juegos
+    original = juegos.ACTORES
+    juegos.ACTORES = [
+        (c, n, t, d, a, "" if a is None else r) for c, n, t, d, a, r in original
+    ]
+    try:
+        errores = juegos.validar_contrapartes()
+    finally:
+        juegos.ACTORES = original
+    assert any("razón no explica" in e for e in errores)

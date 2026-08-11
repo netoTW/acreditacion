@@ -42,3 +42,13 @@
   distractores de un concepto distinto al de la decisión 1, o del banco de acciones
   incorrectas de la dimensión completa. Verificado con el director en la Fase 1;
   no bloquea.
+
+## Juegos por dimensión
+
+- **La dificultad de los juegos no escala con el nivel del rol.** El microlearning y
+  la evaluación sí lo hacen (quices de 3/5/7 ítems, evaluaciones de 4/6/8), pero los
+  juegos reparten el mismo tablero a un nivel 1 y a un nivel 3. Falta un campo de
+  dificultad en el contenido de cada juego y que `repartir` filtre por el nivel del
+  bloque. Detectado por el director jugando D2; el detalle y el porqué están en
+  `DUDAS.md`. No bloquea la cáscara: bloquea el contenido real.
+

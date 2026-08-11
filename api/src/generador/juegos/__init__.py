@@ -12,6 +12,7 @@ son igual de razonables castiga al que entendió.
 from __future__ import annotations
 
 from .cohortes import CASOS as CASOS_COHORTE
+from .contrapartes import ACCIONES, ACTORES
 
 # Margen mínimo entre la brecha del tramo que se rompe y la del segundo peor.
 # Sin esto se puede colar un caso donde dos tramos están igual de mal y el juego
@@ -103,11 +104,84 @@ def validar_caso_cohorte(caso: dict) -> list[str]:
     return errores
 
 
+# D4 reparte 4 actores con contraparte —cada uno con una acción distinta— y 2 sin
+# vínculo, más 2 acciones señuelo. El catálogo tiene que dar para eso con holgura,
+# o el tablero se repetiría partida tras partida.
+MINIMO_ACCIONES = 6
+MINIMO_CONTRAPARTES = 8
+MINIMO_SIN_VINCULO = 4
+
+
+def validar_contrapartes() -> list[str]:
+    """
+    Que el catálogo dé para armar mapas distintos y que cada actor tenga postura.
+
+    La regla que importa: **un actor sin vínculo también necesita razón**. Si el
+    contenido no explica por qué un proveedor no es contraparte, el juego enseña a
+    descartarlo de memoria en vez de por el criterio, que es justo lo que se busca.
+    """
+    errores = []
+    claves = {a[0] for a in ACCIONES}
+
+    if len(claves) != len(ACCIONES):
+        errores.append("hay acciones institucionales con la clave repetida")
+    if len(ACCIONES) < MINIMO_ACCIONES:
+        errores.append(
+            f"el catálogo tiene {len(ACCIONES)} acciones y el mapa reparte "
+            f"{MINIMO_ACCIONES}"
+        )
+
+    codigos = set()
+    contrapartes, sin_vinculo = 0, 0
+    acciones_cubiertas = set()
+
+    for codigo, nombre, tipo, descripcion, accion, razon in ACTORES:
+        if codigo in codigos:
+            errores.append(f"{codigo}: el código está repetido")
+        codigos.add(codigo)
+
+        if accion is None:
+            sin_vinculo += 1
+        else:
+            contrapartes += 1
+            acciones_cubiertas.add(accion)
+            if accion not in claves:
+                errores.append(f"{codigo}: cita la acción «{accion}», que no existe")
+
+        if len((razon or "").split()) < 6:
+            errores.append(
+                f"{codigo}: la razón no explica por qué el vínculo se sostiene o no"
+            )
+        if len((descripcion or "").split()) < 5:
+            errores.append(f"{codigo}: la descripción no dice qué hace el actor")
+
+    if contrapartes < MINIMO_CONTRAPARTES:
+        errores.append(
+            f"solo hay {contrapartes} actores con contraparte y el mapa necesita "
+            f"al menos {MINIMO_CONTRAPARTES} para variar entre partidas"
+        )
+    if sin_vinculo < MINIMO_SIN_VINCULO:
+        errores.append(
+            f"solo hay {sin_vinculo} actores sin vínculo; el descarte es la mitad "
+            f"del juego y necesita al menos {MINIMO_SIN_VINCULO}"
+        )
+    # El mapa toma un actor por acción: sin acciones distintas suficientes no se
+    # puede armar un tablero de cuatro vínculos sin ambigüedad.
+    if len(acciones_cubiertas) < 4:
+        errores.append(
+            f"los actores con contraparte cubren solo {len(acciones_cubiertas)} "
+            "acciones distintas y el mapa tiende cuatro vínculos"
+        )
+
+    return errores
+
+
 def validar_juegos() -> list[str]:
     """Todo el contenido de juegos, de una. Lo llama el seed antes de integrar."""
     errores = []
     for caso in CASOS_COHORTE:
         errores.extend(validar_caso_cohorte(caso))
+    errores.extend(validar_contrapartes())
     return errores
 
 
@@ -145,4 +219,29 @@ def integrar_juegos(conn) -> dict:
              caso["es_contenido_prueba"]),
         )
 
-    return {"casos_cohorte": len(CASOS_COHORTE)}
+    for clave, nombre, descripcion in ACCIONES:
+        conn.execute(
+            """INSERT INTO accion_institucional (clave, nombre, descripcion)
+               VALUES (%s,%s,%s)
+               ON CONFLICT (clave) DO UPDATE
+                 SET nombre = EXCLUDED.nombre, descripcion = EXCLUDED.descripcion""",
+            (clave, nombre, descripcion),
+        )
+
+    for codigo, nombre, tipo, descripcion, accion, razon in ACTORES:
+        conn.execute(
+            """INSERT INTO actor_externo (codigo, nombre, tipo, descripcion,
+                                          accion_clave, razon)
+               VALUES (%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (codigo) DO UPDATE
+                 SET nombre = EXCLUDED.nombre, tipo = EXCLUDED.tipo,
+                     descripcion = EXCLUDED.descripcion,
+                     accion_clave = EXCLUDED.accion_clave, razon = EXCLUDED.razon""",
+            (codigo, nombre, tipo, descripcion, accion, razon),
+        )
+
+    return {
+        "casos_cohorte": len(CASOS_COHORTE),
+        "acciones": len(ACCIONES),
+        "actores": len(ACTORES),
+    }

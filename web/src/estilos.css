@@ -802,3 +802,70 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   color: var(--tinta-3); }
 .cor-acciones { margin-top: 16px; display: flex; gap: 10px; justify-content: center;
   flex-wrap: wrap; }
+
+/* ===================================================================
+   D4 · El mapa de contrapartes — tender vínculos entre dos columnas
+   =================================================================== */
+/* El canal entre columnas es ancho a propósito: las líneas SON el juego y con
+   26px de separación se apelotonaban unas sobre otras. */
+.mapa-tablero { position: relative; display: grid; grid-template-columns: 1fr 1fr;
+  gap: 92px; align-items: start; }
+.mapa-lineas { position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; overflow: visible; }
+.traza { stroke: var(--carmin); stroke-width: 2.5; stroke-linecap: round; opacity: .55; }
+.traza.descarte { stroke: var(--niebla); stroke-dasharray: 5 5; }
+.traza.bien { stroke: var(--menta-deep); opacity: .85; }
+.traza.mal { stroke: var(--carmin); opacity: .85; stroke-dasharray: 4 4; }
+
+.columna { display: flex; flex-direction: column; gap: 9px; }
+.col-rotulo { font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--niebla); margin-bottom: 2px; }
+
+.actor, .accion { position: relative; z-index: 1; display: flex; flex-direction: column;
+  gap: 3px; text-align: left; font: inherit; cursor: pointer; background: #fff;
+  border: 1.5px solid var(--linea); border-radius: var(--r); padding: 13px 15px;
+  box-shadow: var(--sombra); transition: border-color .12s, transform .1s; }
+.actor:hover:not(:disabled), .accion:hover:not(:disabled) { border-color: var(--carmin-soft); }
+.actor:disabled, .accion:disabled { cursor: default; }
+.actor.tomado { border-color: var(--carmin); transform: scale(1.015); }
+.actor.atado { border-color: var(--carmin); background: rgba(225, 29, 60, .04); }
+.actor.bien { border-color: rgba(45, 212, 167, .65); background: rgba(45, 212, 167, .07); }
+.actor.mal { border-color: rgba(225, 29, 60, .5); background: rgba(225, 29, 60, .04); }
+.actor-nombre { font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+.actor-desc { font-size: 11.5px; color: var(--niebla); line-height: 1.45; }
+.actor-verdad { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--linea);
+  font-size: 11.5px; line-height: 1.5; color: var(--tinta-3); }
+
+.accion.recibiendo { border-style: dashed; border-color: var(--carmin-soft); }
+.accion.usada { background: var(--marfil); }
+.accion-nombre { font-size: 13px; font-weight: 600; line-height: 1.35; }
+.accion-desc { font-size: 11.5px; color: var(--niebla); line-height: 1.45; }
+.accion.descarte { border-style: dashed; border-color: var(--niebla); background: transparent; }
+.accion.descarte.usada { background: rgba(138, 122, 131, .08); }
+
+.mapa-pie { display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-wrap: wrap; margin-top: 22px; }
+.mapa-pista { font-size: 13px; color: var(--niebla); }
+
+.mapa-resultado { background: #fff; border: 1px solid var(--linea); border-radius: var(--r-lg);
+  padding: 22px; margin-bottom: 22px; box-shadow: var(--sombra); text-align: center; }
+.mapa-resultado.limpio { border-color: rgba(45, 212, 167, .55);
+  box-shadow: 0 0 0 4px rgba(45, 212, 167, .12), var(--sombra); }
+.mp-marca { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--niebla); }
+.mapa-resultado.limpio .mp-marca { color: var(--menta-deep); }
+.mp-puntaje { font-family: var(--disp); font-size: 42px; font-weight: 800; line-height: 1.1;
+  margin: 4px 0 0; font-variant-numeric: tabular-nums; }
+.mp-descartes { font-size: 12px; color: var(--niebla); margin-bottom: 8px; }
+.mp-xp { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--menta-deep); }
+.mp-nota { display: block; font-family: var(--body); font-size: 11.5px; font-weight: 400;
+  color: var(--niebla); margin-top: 3px; }
+.mp-texto { max-width: 52ch; margin: 12px auto 0; font-size: 13px; line-height: 1.6;
+  color: var(--tinta-3); }
+.mp-acciones { margin-top: 16px; display: flex; gap: 10px; justify-content: center;
+  flex-wrap: wrap; }
+
+/* En el teléfono las columnas se apilan y las líneas van de arriba abajo. */
+@media (max-width: 719px) {
+  .mapa-tablero { grid-template-columns: 1fr; gap: 18px; }
+}

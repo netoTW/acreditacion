@@ -27,7 +27,12 @@ JUEGOS = {
         "nombre": "El caso del estudiante que se pierde",
         "descripcion": "Lee una cohorte y señala dónde se rompe la progresión",
     },
-    # Fase 2, pendientes: GESTION, VCM, ICI.
+    "VCM": {
+        "clave": "contrapartes",
+        "nombre": "El mapa de contrapartes",
+        "descripcion": "Tiende el vínculo que se sostiene y deja fuera el que no",
+    },
+    # Fase 2, pendientes: GESTION, ICI.
 }
 
 

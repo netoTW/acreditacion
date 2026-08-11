@@ -32,3 +32,28 @@ porque su juego no se puede construir sobre conceptos genéricos:
 Las otras tres se sostienen mejor con contenido de prueba: D1 y D2 se apoyan en
 cifras sintéticas que no afirman nada sobre AIEP, y D3 usa los 13 hitos reales,
 que ya están en la fuente.
+
+---
+
+## Calibración de dificultad del contenido
+
+Detectado por el director jugando D2 en la fase 2: **el contenido de prueba exige
+criterio experto en acreditación**. Distinguir que una caída del 70% contra una
+referencia del 90% pesa más que una del 66% contra 65%, o que el indicador correcto
+es el que pertenece a la etapa y no el más desviado, supone un dominio que un
+administrativo o un docente de aula no tiene por qué tener.
+
+No es un defecto de la mecánica —esa funciona— sino del **nivel** del relleno.
+
+Lo que hay que resolver en la fase de contenido real, con AIEP:
+
+1. **Graduar la dificultad por el nivel del rol en esa dimensión.** El modelo ya
+   distingue nivel 1, 2 y 3 por rol (ADR-006) y el motor ya escala la profundidad
+   del microlearning y las evaluaciones; los **juegos todavía no**: hoy reparten
+   el mismo tablero a todos. Un bloque de nivel 1 debería recibir casos donde la
+   señal es evidente, y uno de nivel 3 los casos discutibles.
+2. **Validar con usuarios reales de AIEP** antes de dar el contenido por bueno.
+   Un juego que solo puede ganar quien ya sabe no enseña: filtra.
+
+Está anotado también en `IDEAS-PULIDO.md` como trabajo pendiente del motor.
+
