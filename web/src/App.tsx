@@ -6,6 +6,7 @@ import { Desafio } from "./pantallas/Desafio";
 import { Evaluacion } from "./pantallas/Evaluacion";
 import { Ingreso } from "./pantallas/Ingreso";
 import { Cohorte } from "./pantallas/Cohorte";
+import { Gestion } from "./pantallas/Gestion";
 import { Contrapartes } from "./pantallas/Contrapartes";
 import { Produccion } from "./pantallas/Produccion";
 import { LineaTiempo } from "./pantallas/LineaTiempo";
@@ -119,6 +120,7 @@ export function App() {
     if (vista.clave === "cohorte") return <Cohorte {...propios} />;
     if (vista.clave === "contrapartes") return <Contrapartes {...propios} />;
     if (vista.clave === "produccion") return <Produccion {...propios} />;
+    if (vista.clave === "gestion") return <Gestion {...propios} />;
     return <LineaTiempo {...propios} />;
   }
 

@@ -37,7 +37,11 @@ JUEGOS = {
         "nombre": "El cuadrante de la producción",
         "descripcion": "Decide si es investigación y, por separado, si la institución puede reclamarla",
     },
-    # Fase 2, pendiente: GESTION.
+    "GESTION": {
+        "clave": "gestion",
+        "nombre": "El presupuesto de la acreditación",
+        "descripcion": "Reparte un presupuesto que no alcanza y vive las consecuencias",
+    },
 }
 
 

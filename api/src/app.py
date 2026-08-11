@@ -27,6 +27,7 @@ from motor.linea_tiempo import cerrar_linea, repartir as repartir_linea
 from motor.cohorte import cerrar_cohorte, repartir as repartir_cohorte
 from motor.contrapartes import cerrar_mapa, repartir as repartir_mapa
 from motor.produccion import cerrar_cuadrante, repartir as repartir_cuadrante
+from motor.gestion import cerrar_periodo, repartir as repartir_gestion
 from motor.evaluacion import (
     DesafioPendiente, ModulosPendientes, SinReintentos, abrir_intento,
     cerrar_intento, responder,
@@ -950,6 +951,68 @@ def resultado_produccion(bloque_ruta_id: UUID, cuerpo: CuadranteCerrado,
         "xp_otorgado": r.xp_otorgado,
         "ya_jugado_hoy": r.ya_jugado_hoy,
         "revelacion": r.revelacion,
+    }
+
+
+class PeriodoCerrado(BaseModel):
+    escenario_id: UUID
+    # Un diccionario {clave_frente: cupos} por cada turno de decisión.
+    asignaciones: list[dict[str, int]] = Field(min_length=1, max_length=6)
+
+
+@app.get("/bloques-ruta/{bloque_ruta_id}/juego/gestion", tags=["juegos"])
+def juego_gestion(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
+    """
+    Un escenario con su modelo completo: frentes, desgaste, efecto, umbral,
+    retardo y la regla encadenada.
+
+    Las reglas son públicas a propósito. Ocultarlas no agregaría dificultad sino
+    adivinanza, y el presupuesto sigue sin alcanzar aunque se sepa la aritmética.
+    Lo que no viaja nunca es la solución de ejemplo.
+    """
+    _bloque_propio(bloque_ruta_id, yo)
+    with pool.connection() as conn:
+        try:
+            return repartir_gestion(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id)
+        except JuegoNoCorresponde as e:
+            raise HTTPException(409, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+
+
+@app.post("/bloques-ruta/{bloque_ruta_id}/juego/gestion/resultado", tags=["juegos"])
+def resultado_gestion(bloque_ruta_id: UUID, cuerpo: PeriodoCerrado,
+                      yo: UUID = Depends(colaborador_actual)):
+    """
+    Vuelve a correr el período entero desde el escenario guardado y puntúa.
+
+    El cliente manda **solo las asignaciones**. Los indicadores no viajan de
+    vuelta, así que mentir sobre ellos no sirve de nada; y gastar más cupos de los
+    que hay se rechaza, porque esa restricción es el juego entero.
+    """
+    _bloque_propio(bloque_ruta_id, yo)
+    with pool.connection() as conn:
+        try:
+            r = cerrar_periodo(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id,
+                               escenario_id=cuerpo.escenario_id,
+                               asignaciones=cuerpo.asignaciones)
+        except JuegoNoCorresponde as e:
+            raise HTTPException(409, str(e))
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+    return {
+        "frentes_en_pie": r.frentes_en_pie,
+        "frentes_totales": r.frentes_totales,
+        "periodo_limpio": r.periodo_limpio,
+        "cupos_usados": r.cupos_usados,
+        "cupos_disponibles": r.cupos_disponibles,
+        "puntos": r.puntos,
+        "xp_otorgado": r.xp_otorgado,
+        "ya_jugado_hoy": r.ya_jugado_hoy,
+        "historia": r.historia,
+        "cierre": r.cierre,
     }
 
 

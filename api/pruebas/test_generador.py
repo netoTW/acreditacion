@@ -319,3 +319,42 @@ def test_un_cuadrante_vacio_se_rechaza():
     finally:
         juegos.PRODUCCIONES = original
     assert any("cuadrante (ICI=True, adscrita=False)" in e for e in errores)
+
+
+def test_los_escenarios_de_gestion_son_ganables_y_no_triviales():
+    from generador.juegos import validar_gestion
+    assert validar_gestion() == []
+
+
+def test_un_escenario_que_no_se_puede_ganar_se_rechaza():
+    """Un escenario imposible se ve idéntico a uno difícil: hay que simularlo."""
+    from copy import deepcopy
+    from generador.juegos import validar_escenario_gestion
+    from generador.juegos.gestion import ESCENARIOS
+
+    malo = deepcopy(ESCENARIOS[0])
+    for f in malo["frentes"]:
+        f["umbral"] = 95
+    assert any("no gana el escenario" in e for e in validar_escenario_gestion(malo))
+
+
+def test_un_escenario_que_se_gana_repartiendo_parejo_se_rechaza():
+    """Si el reparto uniforme alcanza, no hubo decisión que tomar."""
+    from copy import deepcopy
+    from generador.juegos import validar_escenario_gestion
+    from generador.juegos.gestion import ESCENARIOS
+
+    malo = deepcopy(ESCENARIOS[0])
+    malo["presupuesto"] = 20          # sobra para todo
+    malo["solucion_ejemplo"] = [{f["clave"]: 5 for f in malo["frentes"]}] * 3
+    assert any("parejo gana el escenario" in e for e in validar_escenario_gestion(malo))
+
+
+def test_un_frente_no_puede_ser_su_propio_habilitador():
+    from copy import deepcopy
+    from generador.juegos import validar_escenario_gestion
+    from generador.juegos.gestion import ESCENARIOS
+
+    malo = deepcopy(ESCENARIOS[0])
+    malo["regla"]["habilitador"] = malo["regla"]["frente"]
+    assert any("su propio habilitador" in e for e in validar_escenario_gestion(malo))

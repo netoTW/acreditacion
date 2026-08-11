@@ -799,7 +799,7 @@ def test_el_bloque_dice_que_juego_le_toca(cliente, apoyo):
     assert juegos["DOCENCIA"]["clave"] == "cohorte"
     assert juegos["VCM"]["clave"] == "contrapartes"
     assert juegos["ICI"]["clave"] == "produccion"
-    assert juegos["GESTION"] is None, "falta de la fase 2"
+    assert juegos["GESTION"]["clave"] == "gestion"
 
 
 def test_la_linea_no_entrega_las_fechas_antes_de_ordenar(cliente, apoyo):
@@ -1298,3 +1298,124 @@ def test_el_cuadrante_es_ludico_y_no_toca_lo_acreditable(cliente, apoyo):
     assert despues["xp_acreditable"] == antes["xp_acreditable"]
     assert despues["insignias"] == antes["insignias"]
     assert despues["escalon"] == antes["escalon"]
+
+
+# --------------------------- D1 · El presupuesto de la acreditación
+def _bloque_gestion(cliente, token):
+    ruta = cliente.get("/mi/ruta", headers=_cab(token)).json()
+    return next(b for b in ruta if b["dimension"] == "GESTION")["bloque_ruta_id"]
+
+
+def test_el_escenario_trae_el_modelo_pero_no_la_solucion(cliente, apoyo):
+    """
+    Las reglas son públicas —ocultarlas agregaría adivinanza, no dificultad— pero
+    la solución de ejemplo es del validador y no del juego.
+    """
+    e = cliente.get(
+        f"/bloques-ruta/{_bloque_gestion(cliente, apoyo)}/juego/gestion", headers=_cab(apoyo)
+    ).json()
+
+    assert "solucion_ejemplo" not in e
+    assert len(e["frentes"]) == 4 and e["presupuesto"] > 0 and e["retardo"] == 2
+    for f in e["frentes"]:
+        assert {"clave", "nombre", "descripcion", "inicial", "desgaste", "efecto", "umbral"} <= set(f)
+    assert e["regla"]["texto"] and e["regla"]["habilitador"] != e["regla"]["frente"]
+    # El período tiene que alcanzar a resolver lo sembrado en el último turno.
+    assert e["turnos"] >= e["turnos_de_decision"] + e["retardo"]
+
+
+def test_gastar_mas_cupos_de_los_que_hay_se_rechaza(cliente, apoyo):
+    """Esa restricción es el juego entero: si se puede exceder, no hay decisión."""
+    bid = _bloque_gestion(cliente, apoyo)
+    e = cliente.get(f"/bloques-ruta/{bid}/juego/gestion", headers=_cab(apoyo)).json()
+    r = cliente.post(
+        f"/bloques-ruta/{bid}/juego/gestion/resultado", headers=_cab(apoyo),
+        json={"escenario_id": e["escenario_id"],
+              "asignaciones": [{e["frentes"][0]["clave"]: e["presupuesto"] + 1}]},
+    )
+    assert r.status_code == 422 and "presupuesto" in r.json()["detail"]
+
+
+def test_volcar_todo_en_el_frente_visible_no_alcanza(cliente, apoyo):
+    """
+    El corazón de D1: el indicador que la acreditación mira está tapado por otro.
+    Regarlo entero lo deja en su techo mientras el resto se desmorona.
+    """
+    bid = _bloque_gestion(cliente, apoyo)
+    e = cliente.get(f"/bloques-ruta/{bid}/juego/gestion", headers=_cab(apoyo)).json()
+    tapado = e["regla"]["frente"]
+
+    r = cliente.post(
+        f"/bloques-ruta/{bid}/juego/gestion/resultado", headers=_cab(apoyo),
+        json={"escenario_id": e["escenario_id"],
+              "asignaciones": [{tapado: e["presupuesto"]}] * e["turnos_de_decision"]},
+    ).json()
+
+    assert r["periodo_limpio"] is False
+    caido = next(f for f in r["cierre"]["frentes"] if f["clave"] == tapado)
+    assert caido["en_pie"] is False, "el frente visible no se puede llevar solo"
+
+
+def test_el_orden_importa_no_solo_cuanto(cliente, apoyo):
+    """
+    Los mismos cupos, en distinto orden, dan resultados distintos: sembrar el
+    habilitador tarde llega cuando el período ya cerró.
+    """
+    import psycopg
+    bid = _bloque_gestion(cliente, apoyo)
+    e = cliente.get(f"/bloques-ruta/{bid}/juego/gestion", headers=_cab(apoyo)).json()
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        solucion = conn.execute(
+            "SELECT solucion_ejemplo FROM escenario_gestion WHERE id = %s",
+            (e["escenario_id"],),
+        ).fetchone()[0]
+
+    def cerrar(asignaciones):
+        return cliente.post(
+            f"/bloques-ruta/{bid}/juego/gestion/resultado", headers=_cab(apoyo),
+            json={"escenario_id": e["escenario_id"], "asignaciones": asignaciones},
+        ).json()
+
+    bien = cerrar(solucion)
+    al_reves = cerrar(list(reversed(solucion)))
+
+    assert bien["periodo_limpio"] is True, "la solución de ejemplo tiene que ganar"
+    assert al_reves["frentes_en_pie"] < bien["frentes_en_pie"], \
+        "invertir el orden con los mismos cupos tiene que costar caro"
+
+
+def test_el_periodo_de_gestion_es_ludico_y_no_toca_lo_acreditable(cliente, apoyo):
+    bid = _bloque_gestion(cliente, apoyo)
+    antes = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    e = cliente.get(f"/bloques-ruta/{bid}/juego/gestion", headers=_cab(apoyo)).json()
+    cliente.post(f"/bloques-ruta/{bid}/juego/gestion/resultado", headers=_cab(apoyo),
+                 json={"escenario_id": e["escenario_id"],
+                       "asignaciones": [{} for _ in range(e["turnos_de_decision"])]})
+    despues = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    assert despues["xp_acreditable"] == antes["xp_acreditable"]
+    assert despues["insignias"] == antes["insignias"]
+    assert despues["escalon"] == antes["escalon"]
+
+
+def test_la_gestion_de_otra_dimension_y_de_otro_rol_no_se_abre(cliente, apoyo, direccion):
+    propio = _bloque_calidad(cliente, apoyo)
+    assert cliente.get(f"/bloques-ruta/{propio}/juego/gestion",
+                       headers=_cab(apoyo)).status_code == 409
+    ajeno = _bloque_gestion(cliente, direccion)
+    assert cliente.get(f"/bloques-ruta/{ajeno}/juego/gestion",
+                       headers=_cab(apoyo)).status_code == 404
+
+
+def test_las_cinco_dimensiones_ya_tienen_su_juego(cliente, apoyo):
+    """Cierre de la fase 2: ninguna dimensión queda con el hueco «en construcción»."""
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
+    juegos = {}
+    for b in ruta:
+        detalle = cliente.get(f"/bloques-ruta/{b['bloque_ruta_id']}", headers=_cab(apoyo)).json()
+        juegos[b["dimension"]] = detalle["juego"]["clave"]
+
+    assert juegos == {
+        "GESTION": "gestion", "DOCENCIA": "cohorte", "CALIDAD": "linea_tiempo",
+        "VCM": "contrapartes", "ICI": "produccion",
+    }
+    assert len(set(juegos.values())) == 5, "cada dimensión lleva un juego DISTINTO"

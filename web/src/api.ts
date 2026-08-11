@@ -113,6 +113,55 @@ export type Bloque = Omit<BloqueDeRuta, "modulos"> & {
   evaluacion_disponible: boolean;
 };
 
+export type FrenteGestion = {
+  clave: string;
+  nombre: string;
+  descripcion: string;
+  inicial: number;
+  desgaste: number;
+  efecto: number;
+  umbral: number;
+};
+
+export type EscenarioGestion = {
+  juego: string;
+  escenario_id: string;
+  codigo: string;
+  titulo: string;
+  contexto: string;
+  turnos: number;
+  turnos_de_decision: number;
+  presupuesto: number;
+  retardo: number;
+  frentes: FrenteGestion[];
+  /** El techo encadenado: un frente limitado por otro. Es público a propósito. */
+  regla: { frente: string; habilitador: string; base: number; factor: number; texto: string };
+  cierre: string;
+};
+
+export type ResultadoGestion = {
+  frentes_en_pie: number;
+  frentes_totales: number;
+  periodo_limpio: boolean;
+  cupos_usados: number;
+  cupos_disponibles: number;
+  puntos: number;
+  xp_otorgado: number;
+  ya_jugado_hoy: boolean;
+  historia: {
+    turno: number;
+    valores: Record<string, number>;
+    techo: number | null;
+    llegadas: Record<string, number>;
+  }[];
+  cierre: {
+    frentes: { clave: string; nombre: string; valor_final: number; umbral: number; en_pie: boolean }[];
+    en_pie: number;
+    total: number;
+    texto: string;
+  };
+};
+
 export type PiezaProduccion = {
   pieza_id: string;
   codigo: string;
@@ -437,6 +486,21 @@ export const api = {
   completarModulo: (id: string) =>
     pedir<{ ya_estaba: boolean; xp_otorgado: number }>(`/modulos/${id}/completar`, {
       method: "POST",
+    }),
+
+  /** D1: el escenario con su modelo completo. Sin la solución de ejemplo. */
+  gestion: (bloqueRutaId: string) =>
+    pedir<EscenarioGestion>(`/bloques-ruta/${bloqueRutaId}/juego/gestion`),
+
+  /** Solo viajan las asignaciones: el servidor recorre el período de nuevo. */
+  cerrarGestion: (
+    bloqueRutaId: string,
+    escenario_id: string,
+    asignaciones: Record<string, number>[],
+  ) =>
+    pedir<ResultadoGestion>(`/bloques-ruta/${bloqueRutaId}/juego/gestion/resultado`, {
+      method: "POST",
+      body: JSON.stringify({ escenario_id, asignaciones }),
     }),
 
   /** D5: seis producciones, SIN decir en qué casillero va cada una. */

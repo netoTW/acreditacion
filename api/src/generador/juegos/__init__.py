@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from .cohortes import CASOS as CASOS_COHORTE
 from .contrapartes import ACCIONES, ACTORES
+from .gestion import ESCENARIOS
 from .produccion import LINEAS, PRODUCCIONES
 
 # Margen mínimo entre la brecha del tramo que se rompe y la del segundo peor.
@@ -235,6 +236,104 @@ def validar_produccion() -> list[str]:
     return errores
 
 
+def validar_escenario_gestion(escenario: dict) -> list[str]:
+    """
+    Que el escenario sea **ganable y no trivial**, comprobado simulándolo.
+
+    Tres propiedades, y ninguna se puede leer del contenido — hay que correrlo:
+
+    1. **Se puede ganar.** La solución de ejemplo deja los cuatro frentes sobre su
+       umbral. Un escenario imposible se ve idéntico a uno difícil.
+    2. **No se gana repartiendo parejo.** Si el reparto uniforme alcanza, no hubo
+       decisión: el presupuesto no estaba apretado.
+    3. **El habilitador importa.** Volcar todo en un solo frente —cualquiera— tiene
+       que fallar. Si el frente visible se puede llevar solo, la regla encadenada
+       es decorativa.
+    """
+    from motor.simulacion import evaluar, simular
+
+    errores = []
+    etiqueta = escenario.get("codigo", "?")
+    claves = [f["clave"] for f in escenario["frentes"]]
+    regla = escenario["regla"]
+
+    if len(set(claves)) != len(claves):
+        errores.append(f"{etiqueta}: hay frentes con la clave repetida")
+        return errores
+    for campo in ("frente", "habilitador"):
+        if regla[campo] not in claves:
+            errores.append(f"{etiqueta}: la regla cita el frente «{regla[campo]}», que no existe")
+    if regla["frente"] == regla["habilitador"]:
+        errores.append(f"{etiqueta}: un frente no puede ser su propio habilitador")
+    if errores:
+        return errores
+
+    presupuesto = escenario["presupuesto"]
+    decisiones = escenario["turnos_de_decision"]
+
+    # Ningún turno de la solución puede gastar más de lo que hay.
+    for i, turno in enumerate(escenario["solucion_ejemplo"], start=1):
+        gastado = sum(turno.values())
+        if gastado > presupuesto:
+            errores.append(
+                f"{etiqueta}: la solución de ejemplo gasta {gastado} cupos en el turno "
+                f"{i} y el presupuesto es {presupuesto}"
+            )
+        for clave in turno:
+            if clave not in claves:
+                errores.append(f"{etiqueta}: la solución invierte en «{clave}», que no existe")
+    if len(escenario["solucion_ejemplo"]) > decisiones:
+        errores.append(f"{etiqueta}: la solución usa más turnos de decisión de los que hay")
+    if errores:
+        return errores
+
+    # 1 — se puede ganar
+    r = evaluar(escenario, simular(escenario, escenario["solucion_ejemplo"]))
+    if r["en_pie"] != r["total"]:
+        caidos = [d["clave"] for d in r["frentes"] if not d["en_pie"]]
+        errores.append(
+            f"{etiqueta}: la solución de ejemplo no gana el escenario; quedan abajo "
+            f"{caidos}. Si no se puede ganar, el juego castiga por diseño."
+        )
+
+    # 2 — no se gana repartiendo parejo
+    base, resto = divmod(presupuesto, len(claves))
+    parejo = {c: base + (1 if i < resto else 0) for i, c in enumerate(claves)}
+    rp = evaluar(escenario, simular(escenario, [parejo] * decisiones))
+    if rp["en_pie"] == rp["total"]:
+        errores.append(
+            f"{etiqueta}: repartir el presupuesto parejo gana el escenario, así que no "
+            "hay ninguna decisión que tomar"
+        )
+
+    # 3 — el habilitador importa
+    for clave in claves:
+        rm = evaluar(escenario, simular(escenario, [{clave: presupuesto}] * decisiones))
+        if rm["en_pie"] == rm["total"]:
+            errores.append(
+                f"{etiqueta}: volcar todo el presupuesto en «{clave}» gana el escenario"
+            )
+
+    for campo in ("contexto", "cierre", "titulo"):
+        if len((escenario.get(campo) or "").split()) < 5:
+            errores.append(f"{etiqueta}: «{campo}» no dice nada")
+    if len((regla.get("texto") or "").split()) < 8:
+        errores.append(f"{etiqueta}: la regla encadenada no está explicada al jugador")
+
+    return errores
+
+
+def validar_gestion() -> list[str]:
+    errores = []
+    codigos = set()
+    for e in ESCENARIOS:
+        if e["codigo"] in codigos:
+            errores.append(f"{e['codigo']}: el código está repetido")
+        codigos.add(e["codigo"])
+        errores.extend(validar_escenario_gestion(e))
+    return errores
+
+
 def validar_juegos() -> list[str]:
     """Todo el contenido de juegos, de una. Lo llama el seed antes de integrar."""
     errores = []
@@ -242,6 +341,7 @@ def validar_juegos() -> list[str]:
         errores.extend(validar_caso_cohorte(caso))
     errores.extend(validar_contrapartes())
     errores.extend(validar_produccion())
+    errores.extend(validar_gestion())
     return errores
 
 
@@ -326,8 +426,31 @@ def integrar_juegos(conn) -> dict:
              razon_ici, razon_adscripcion),
         )
 
+    for e in ESCENARIOS:
+        conn.execute(
+            """INSERT INTO escenario_gestion (codigo, titulo, contexto, turnos,
+                                              turnos_de_decision, presupuesto, retardo,
+                                              frentes, regla, solucion_ejemplo, cierre)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s)
+               ON CONFLICT (codigo) DO UPDATE
+                 SET titulo = EXCLUDED.titulo, contexto = EXCLUDED.contexto,
+                     turnos = EXCLUDED.turnos,
+                     turnos_de_decision = EXCLUDED.turnos_de_decision,
+                     presupuesto = EXCLUDED.presupuesto, retardo = EXCLUDED.retardo,
+                     frentes = EXCLUDED.frentes, regla = EXCLUDED.regla,
+                     solucion_ejemplo = EXCLUDED.solucion_ejemplo,
+                     cierre = EXCLUDED.cierre""",
+            (e["codigo"], e["titulo"], e["contexto"], e["turnos"],
+             e["turnos_de_decision"], e["presupuesto"], e["retardo"],
+             json.dumps(e["frentes"], ensure_ascii=False),
+             json.dumps(e["regla"], ensure_ascii=False),
+             json.dumps(e["solucion_ejemplo"], ensure_ascii=False),
+             e["cierre"]),
+        )
+
     return {
         "casos_cohorte": len(CASOS_COHORTE),
+        "escenarios_gestion": len(ESCENARIOS),
         "acciones": len(ACCIONES),
         "actores": len(ACTORES),
         "lineas": len(LINEAS),

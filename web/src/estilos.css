@@ -955,3 +955,85 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .casillas { grid-template-columns: 1fr; }
   .eje-y { display: none; }
 }
+
+/* ===================================================================
+   D1 · El presupuesto de la acreditación — repartir y esperar
+   =================================================================== */
+.reglas-juego { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px; margin-bottom: 20px; }
+.rg-item { background: #fff; border: 1px solid var(--linea); border-radius: var(--r-sm);
+  padding: 12px 14px; font-size: 12.5px; line-height: 1.55; color: var(--tinta-3);
+  box-shadow: var(--sombra); }
+/* La regla encadenada es la que hace que decidir duela: se destaca. */
+.rg-regla { grid-column: 1 / -1; background: rgba(244, 183, 64, .13);
+  border-color: rgba(244, 183, 64, .5); }
+
+.semestres { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.sem { font-family: var(--mono); font-size: 11px; padding: 5px 11px; border-radius: 99px;
+  background: var(--marfil); border: 1px solid var(--linea); color: var(--niebla); }
+.sem.pasado { background: rgba(45, 212, 167, .12); border-color: rgba(45, 212, 167, .4);
+  color: var(--menta-deep); }
+.sem.ahora { background: var(--carmin); border-color: var(--carmin); color: #fff;
+  font-weight: 700; }
+.sem.solo-resuelve { border-style: dashed; }
+
+.frentes { display: flex; flex-direction: column; gap: 12px; }
+.frente { background: #fff; border: 1.5px solid var(--linea); border-radius: var(--r);
+  padding: 16px 18px; box-shadow: var(--sombra); }
+.frente.bien { border-color: rgba(45, 212, 167, .6); }
+.frente.mal { border-color: rgba(225, 29, 60, .5); }
+.fr-cabecera { display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; margin-bottom: 10px; }
+.fr-nombre { font-size: 14px; font-weight: 650; }
+.fr-desc { font-size: 11.5px; color: var(--niebla); line-height: 1.45; margin-top: 2px; }
+.fr-valor { font-family: var(--disp); font-size: 26px; font-weight: 800; line-height: 1;
+  text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fr-valor span { display: block; font-family: var(--mono); font-size: 10.5px; font-weight: 400;
+  color: var(--niebla); margin-top: 3px; }
+
+.fr-barra { position: relative; height: 12px; background: var(--linea); border-radius: 99px;
+  overflow: hidden; }
+.fr-relleno { display: block; height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, var(--menta), var(--menta-deep));
+  transition: width .5s cubic-bezier(.2,.8,.2,1); }
+.frente.mal .fr-relleno { background: linear-gradient(90deg, #f08ca0, var(--carmin)); }
+/* El umbral se marca sobre la barra: la referencia va donde está el dato. */
+.fr-umbral { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--tinta);
+  opacity: .55; }
+
+.fr-pie { display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-wrap: wrap; margin-top: 10px; }
+.fr-nota { font-family: var(--mono); font-size: 11px; color: var(--niebla); }
+.fr-camino { color: var(--oro); filter: brightness(.75); }
+.fr-cupos { display: flex; align-items: center; gap: 10px; }
+.fr-cupos b { font-family: var(--mono); font-size: 16px; min-width: 16px; text-align: center;
+  font-variant-numeric: tabular-nums; }
+.cupo-btn { width: 30px; height: 30px; font: inherit; font-size: 16px; line-height: 1;
+  border-radius: 50%; border: 1.5px solid var(--linea); background: var(--marfil);
+  cursor: pointer; color: var(--tinta); }
+.cupo-btn:hover:not(:disabled) { background: var(--carmin); border-color: var(--carmin);
+  color: #fff; }
+.cupo-btn:disabled { opacity: .35; cursor: default; }
+
+.gestion-pie { display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-wrap: wrap; margin-top: 22px; }
+.gestion-pista { font-size: 13px; color: var(--niebla); max-width: 52ch; }
+
+.gestion-resultado { background: #fff; border: 1px solid var(--linea); border-radius: var(--r-lg);
+  padding: 22px; margin-bottom: 20px; box-shadow: var(--sombra); text-align: center; }
+.gestion-resultado.limpio { border-color: rgba(45, 212, 167, .55);
+  box-shadow: 0 0 0 4px rgba(45, 212, 167, .12), var(--sombra); }
+.ge-marca { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--niebla); }
+.gestion-resultado.limpio .ge-marca { color: var(--menta-deep); }
+.ge-puntaje { font-family: var(--disp); font-size: 42px; font-weight: 800; line-height: 1.1;
+  margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+.ge-puntaje span { font-size: 22px; color: var(--niebla); }
+.ge-sub { font-size: 12px; color: var(--niebla); margin-bottom: 8px; }
+.ge-xp { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--menta-deep); }
+.ge-nota { display: block; font-family: var(--body); font-size: 11.5px; font-weight: 400;
+  color: var(--niebla); margin-top: 3px; }
+.ge-texto { max-width: 54ch; margin: 12px auto 0; font-size: 13px; line-height: 1.6;
+  color: var(--tinta-3); }
+.ge-acciones { margin-top: 16px; display: flex; gap: 10px; justify-content: center;
+  flex-wrap: wrap; }
