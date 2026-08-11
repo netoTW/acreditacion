@@ -4,15 +4,14 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY tsconfig.json vite.config.ts index.html ./
 COPY src ./src
-# La URL de la API la resuelve el NAVEGADOR del director, no el contenedor:
-# por eso apunta a localhost del host, no al nombre del servicio.
-ARG VITE_API=http://localhost:8010
+# La API se llama por ruta relativa: mismo origen que la página, así que la
+# imagen sirve igual en localhost, en la red local o detrás de un túnel público
+# sin volver a compilar. Quien resuelve /api es nginx, no el navegador.
+ARG VITE_API=/api
 ENV VITE_API=$VITE_API
 RUN npm run build
 
-FROM node:22-alpine
-WORKDIR /app
-RUN npm install -g serve@14
-COPY --from=build /app/dist ./dist
+FROM nginx:alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 5180
-CMD ["serve", "-s", "dist", "-l", "5180"]

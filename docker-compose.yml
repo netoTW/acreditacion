@@ -63,7 +63,9 @@ services:
     build:
       context: ./web
       args:
-        VITE_API: http://localhost:${PUERTO_API:-8010}
+        # Ruta relativa: nginx del propio contenedor hace de proxy a la API, así
+        # que el navegador nunca sale del origen desde el que abrió la página.
+        VITE_API: /api
     ports:
       - "${PUERTO_WEB:-5180}:5180"
     depends_on:
