@@ -22,6 +22,8 @@ from pydantic import BaseModel, Field
 
 from identidad import SesionInvalida, proveedor_activo, verificar
 from motor.desafio import NoCritica, resolver_desafio, ver_desafio
+from motor.juegos import JuegoNoCorresponde, juego_de
+from motor.linea_tiempo import cerrar_linea, repartir as repartir_linea
 from motor.evaluacion import (
     DesafioPendiente, ModulosPendientes, SinReintentos, abrir_intento,
     cerrar_intento, responder,
@@ -427,9 +429,13 @@ def bloque(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
     modulos = _modulos_del_bloque(bloque_ruta_id, yo)
     completos = sum(1 for m in modulos if m["completado"])
     falta_desafio = bool(cabecera["es_critica"]) and not cabecera["desafio_resuelto"]
+    juego = juego_de(cabecera["dimension"])
 
     return {
         **cabecera,
+        # Cada dimensión lleva su propio juego. Mientras no exista, la pantalla
+        # muestra el hueco en vez de esconderlo (fase 2).
+        "juego": juego,
         "modulos": modulos,
         "modulos_completos": completos,
         "desafio_pendiente": falta_desafio,
@@ -684,6 +690,57 @@ def clave_de_respuestas(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_act
             WHERE br.id = %s ORDER BY i.enunciado""",
         (bloque_ruta_id,),
     )
+
+
+# ============================================ juego de la dimensión (fase 2)
+class LineaCerrada(BaseModel):
+    """El orden en que quedaron las cartas. Cuál era el real lo pone el servidor."""
+    orden: list[UUID] = Field(min_length=2, max_length=6)
+
+
+@app.get("/bloques-ruta/{bloque_ruta_id}/juego/linea-tiempo", tags=["juegos"])
+def linea_tiempo(bloque_ruta_id: UUID, yo: UUID = Depends(colaborador_actual)):
+    """
+    Seis hitos del proceso real, barajados y **sin su período ni su año**.
+
+    Si viajaran las fechas, ordenar sería leerlas. Llegan en la revelación.
+    """
+    _bloque_propio(bloque_ruta_id, yo)
+    with pool.connection() as conn:
+        try:
+            return repartir_linea(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id)
+        except JuegoNoCorresponde as e:
+            raise HTTPException(409, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+
+
+@app.post("/bloques-ruta/{bloque_ruta_id}/juego/linea-tiempo/resultado", tags=["juegos"])
+def resultado_linea_tiempo(bloque_ruta_id: UUID, cuerpo: LineaCerrada,
+                           yo: UUID = Depends(colaborador_actual)):
+    """Corrige la secuencia en el servidor. XP lúdico, con su cupo diario por bloque."""
+    _bloque_propio(bloque_ruta_id, yo)
+    with pool.connection() as conn:
+        try:
+            r = cerrar_linea(conn, colaborador_id=yo, bloque_ruta_id=bloque_ruta_id,
+                             orden_propuesto=[str(h) for h in cuerpo.orden])
+        except JuegoNoCorresponde as e:
+            raise HTTPException(409, str(e))
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+    return {
+        "total": r.total,
+        "en_su_lugar": r.en_su_lugar,
+        "pares_correctos": r.pares_correctos,
+        "pares_totales": r.pares_totales,
+        "linea_perfecta": r.linea_perfecta,
+        "puntos": r.puntos,
+        "xp_otorgado": r.xp_otorgado,
+        "ya_jugado_hoy": r.ya_jugado_hoy,
+        "revelacion": r.revelacion,
+    }
 
 
 # ======================================================== desafío aplicado

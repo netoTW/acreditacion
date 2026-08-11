@@ -10,6 +10,7 @@ type Props = {
   onVolver: () => void;
   onAbrirModulo: (moduloId: string) => void;
   onAbrirDesafio: () => void;
+  onAbrirJuego: () => void;
   onRendir: () => void;
   onSalir: () => void;
 };
@@ -119,21 +120,29 @@ export function Bloque(p: Props) {
               );
             })}
 
-            {/* El juego de la dimensión es Fase 2. Se muestra el hueco en vez de
-                ocultarlo: la estructura que AIEP definió tiene cuatro piezas y hay
-                que poder ver cuál falta. */}
+            {/* Cada dimensión lleva su propio juego. Mientras no exista se muestra
+                el hueco en vez de ocultarlo: la estructura que AIEP definió tiene
+                cuatro piezas y hay que poder ver cuál falta. */}
             <div className="mod-row">
-              <div className="mod-ico cerrado">
+              <div className={`mod-ico ${b.juego ? "ahora" : "cerrado"}`}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="2" y="7" width="20" height="12" rx="3" />
                   <path d="M7 11v4M5 13h4M16 12h.01M18.5 15h.01" />
                 </svg>
               </div>
               <div className="mod-info">
-                <div className="t">Juego de {b.dimension_nombre}</div>
-                <div className="d">Cada dimensión lleva el suyo · se construye en la fase 2</div>
+                <div className="t">{b.juego?.nombre ?? `Juego de ${b.dimension_nombre}`}</div>
+                <div className="d">
+                  {b.juego
+                    ? `${b.juego.descripcion} · XP de juego, no acreditable`
+                    : "Cada dimensión lleva el suyo · se construye en la fase 2"}
+                </div>
               </div>
-              <div className="mod-status">en construcción</div>
+              {b.juego ? (
+                <button className="btn btn-primary" onClick={p.onAbrirJuego}>Jugar</button>
+              ) : (
+                <div className="mod-status">en construcción</div>
+              )}
             </div>
 
             {b.es_critica && (

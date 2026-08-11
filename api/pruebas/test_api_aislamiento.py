@@ -774,3 +774,134 @@ def test_el_desafio_de_otro_rol_no_se_abre(cliente, apoyo, direccion):
         f"/bloques-ruta/{critico['bloque_ruta_id']}/desafio", headers=_cab(apoyo)
     )
     assert r.status_code == 404
+
+
+# ------------------------------------ D3 · Línea de tiempo (juego de la dimensión)
+def _bloque_calidad(cliente, token):
+    ruta = cliente.get("/mi/ruta", headers=_cab(token)).json()
+    return next(b for b in ruta if b["dimension"] == "CALIDAD")["bloque_ruta_id"]
+
+
+def test_el_bloque_dice_que_juego_le_toca(cliente, apoyo):
+    """
+    Cada dimensión lleva el suyo. Las que no lo tienen aún devuelven null, y la
+    pantalla muestra el hueco: esconderlo daría a entender que el bloque está completo.
+    """
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
+    juegos = {}
+    for b in ruta:
+        detalle = cliente.get(f"/bloques-ruta/{b['bloque_ruta_id']}", headers=_cab(apoyo)).json()
+        juegos[b["dimension"]] = detalle["juego"]
+
+    assert juegos["CALIDAD"]["clave"] == "linea_tiempo"
+    assert all(juegos[d] is None for d in ("GESTION", "DOCENCIA", "VCM", "ICI"))
+
+
+def test_la_linea_no_entrega_las_fechas_antes_de_ordenar(cliente, apoyo):
+    """Si el período viajara con la carta, ordenar sería leer fechas."""
+    linea = cliente.get(
+        f"/bloques-ruta/{_bloque_calidad(cliente, apoyo)}/juego/linea-tiempo",
+        headers=_cab(apoyo),
+    ).json()
+
+    assert len(linea["cartas"]) == 6
+    for c in linea["cartas"]:
+        assert set(c) == {"hito_id", "codigo", "titulo"}
+
+
+def test_la_linea_solo_se_juega_en_su_dimension(cliente, apoyo):
+    """El juego de una dimensión no se juega desde otra."""
+    ruta = cliente.get("/mi/ruta", headers=_cab(apoyo)).json()
+    ajena = next(b for b in ruta if b["dimension"] != "CALIDAD")["bloque_ruta_id"]
+    r = cliente.get(f"/bloques-ruta/{ajena}/juego/linea-tiempo", headers=_cab(apoyo))
+    assert r.status_code == 409
+
+
+def test_la_linea_de_otro_rol_no_se_abre(cliente, apoyo, direccion):
+    ajeno = _bloque_calidad(cliente, direccion)
+    r = cliente.get(f"/bloques-ruta/{ajeno}/juego/linea-tiempo", headers=_cab(apoyo))
+    assert r.status_code == 404
+
+
+def test_el_orden_correcto_da_linea_perfecta(cliente, apoyo):
+    """El servidor conoce la secuencia real; el cliente solo manda en qué orden la dejó."""
+    bid = _bloque_calidad(cliente, apoyo)
+    linea = cliente.get(f"/bloques-ruta/{bid}/juego/linea-tiempo", headers=_cab(apoyo)).json()
+    # Los códigos H01..H13 llevan el orden real: sirven de clave para la prueba.
+    correcto = [c["hito_id"] for c in sorted(linea["cartas"], key=lambda c: c["codigo"])]
+
+    r = cliente.post(f"/bloques-ruta/{bid}/juego/linea-tiempo/resultado",
+                     headers=_cab(apoyo), json={"orden": correcto}).json()
+
+    assert r["linea_perfecta"] is True
+    assert r["pares_correctos"] == r["pares_totales"] == 15
+    assert r["en_su_lugar"] == 6
+    assert r["puntos"] == 15 * 18 + 90
+
+
+def test_la_linea_invertida_no_acierta_ni_un_par(cliente, apoyo):
+    """El puntaje por pares tiene que distinguir «casi» de «al revés»."""
+    bid = _bloque_calidad(cliente, apoyo)
+    linea = cliente.get(f"/bloques-ruta/{bid}/juego/linea-tiempo", headers=_cab(apoyo)).json()
+    invertido = [c["hito_id"] for c in sorted(linea["cartas"], key=lambda c: c["codigo"],
+                                              reverse=True)]
+
+    r = cliente.post(f"/bloques-ruta/{bid}/juego/linea-tiempo/resultado",
+                     headers=_cab(apoyo), json={"orden": invertido}).json()
+
+    assert r["pares_correctos"] == 0 and r["puntos"] == 0
+    assert r["linea_perfecta"] is False
+    # La revelación llega ordenada por la secuencia real, con el período que faltaba.
+    assert [h["posicion_real"] for h in r["revelacion"]] == [1, 2, 3, 4, 5, 6]
+    assert all(h["periodo_texto"] for h in r["revelacion"])
+
+
+def test_un_solo_hito_corrido_conserva_casi_todo_el_puntaje(cliente, apoyo):
+    """
+    Lo que justifica puntuar por pares: con puntaje por casilla, mover uno de lugar
+    puede desplazar a todos los demás y perderlo todo aunque la secuencia se entienda.
+    """
+    bid = _bloque_calidad(cliente, apoyo)
+    linea = cliente.get(f"/bloques-ruta/{bid}/juego/linea-tiempo", headers=_cab(apoyo)).json()
+    orden = [c["hito_id"] for c in sorted(linea["cartas"], key=lambda c: c["codigo"])]
+    orden.insert(0, orden.pop())            # el último se va al principio
+
+    r = cliente.post(f"/bloques-ruta/{bid}/juego/linea-tiempo/resultado",
+                     headers=_cab(apoyo), json={"orden": orden}).json()
+
+    assert r["en_su_lugar"] == 0, "ni una casilla exacta"
+    assert r["pares_correctos"] == 10, "pero 10 de 15 pares siguen bien ordenados"
+    assert r["puntos"] > 0
+
+
+def test_la_linea_es_ludica_y_no_toca_lo_acreditable(cliente, apoyo):
+    bid = _bloque_calidad(cliente, apoyo)
+    antes = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    linea = cliente.get(f"/bloques-ruta/{bid}/juego/linea-tiempo", headers=_cab(apoyo)).json()
+    cliente.post(f"/bloques-ruta/{bid}/juego/linea-tiempo/resultado", headers=_cab(apoyo),
+                 json={"orden": [c["hito_id"] for c in linea["cartas"]]})
+
+    despues = cliente.get("/mi/estado", headers=_cab(apoyo)).json()
+    assert despues["xp_acreditable"] == antes["xp_acreditable"]
+    assert despues["insignias"] == antes["insignias"]
+    assert despues["escalon"] == antes["escalon"]
+
+
+def test_repetir_la_linea_el_mismo_dia_no_vuelve_a_pagar(cliente, apoyo):
+    bid = _bloque_calidad(cliente, apoyo)
+    linea = cliente.get(f"/bloques-ruta/{bid}/juego/linea-tiempo", headers=_cab(apoyo)).json()
+    cuerpo = {"orden": [c["hito_id"] for c in linea["cartas"]]}
+    cliente.post(f"/bloques-ruta/{bid}/juego/linea-tiempo/resultado", headers=_cab(apoyo),
+                 json=cuerpo)
+    otra = cliente.post(f"/bloques-ruta/{bid}/juego/linea-tiempo/resultado",
+                        headers=_cab(apoyo), json=cuerpo).json()
+    assert otra["ya_jugado_hoy"] is True and otra["xp_otorgado"] == 0
+
+
+def test_una_linea_con_hitos_repetidos_se_rechaza(cliente, apoyo):
+    bid = _bloque_calidad(cliente, apoyo)
+    linea = cliente.get(f"/bloques-ruta/{bid}/juego/linea-tiempo", headers=_cab(apoyo)).json()
+    uno = linea["cartas"][0]["hito_id"]
+    r = cliente.post(f"/bloques-ruta/{bid}/juego/linea-tiempo/resultado",
+                     headers=_cab(apoyo), json={"orden": [uno, uno]})
+    assert r.status_code == 422

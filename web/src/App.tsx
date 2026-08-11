@@ -5,6 +5,7 @@ import { Calibre } from "./pantallas/Calibre";
 import { Desafio } from "./pantallas/Desafio";
 import { Evaluacion } from "./pantallas/Evaluacion";
 import { Ingreso } from "./pantallas/Ingreso";
+import { LineaTiempo } from "./pantallas/LineaTiempo";
 import { Mesa } from "./pantallas/Mesa";
 import { MiRuta } from "./pantallas/MiRuta";
 import { Modulo } from "./pantallas/Modulo";
@@ -23,6 +24,7 @@ type Vista =
   | { t: "modulo"; bloqueRutaId: string; moduloId: string }
   | { t: "quiz"; bloqueRutaId: string; moduloId: string; tituloModulo: string }
   | { t: "desafio"; bloqueRutaId: string }
+  | { t: "juego"; bloqueRutaId: string }
   | { t: "evaluacion"; bloqueRutaId: string }
   | { t: "calibre"; bloqueRutaId: string; moduloId: string }
   | { t: "mesa" };
@@ -97,7 +99,19 @@ export function App() {
         onAbrirModulo={(moduloId) =>
           setVista({ t: "modulo", bloqueRutaId: vista.bloqueRutaId, moduloId })}
         onAbrirDesafio={() => setVista({ t: "desafio", bloqueRutaId: vista.bloqueRutaId })}
+        onAbrirJuego={() => setVista({ t: "juego", bloqueRutaId: vista.bloqueRutaId })}
         onRendir={() => setVista({ t: "evaluacion", bloqueRutaId: vista.bloqueRutaId })}
+      />
+    );
+
+  if (vista.t === "juego")
+    return (
+      <LineaTiempo
+        {...comun}
+        bloqueRutaId={vista.bloqueRutaId}
+        onVolver={() => { cargar(); setVista({ t: "bloque", bloqueRutaId: vista.bloqueRutaId }); }}
+        onXpGanado={cargar}
+        onSalir={salir}
       />
     );
 

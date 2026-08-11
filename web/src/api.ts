@@ -108,7 +108,39 @@ export type Bloque = Omit<BloqueDeRuta, "modulos"> & {
   modulos_completos: number;
   /** En la dimensión crítica, el desafío va antes de la evaluación reforzada. */
   desafio_pendiente: boolean;
+  /** El juego propio de esta dimensión. null mientras no exista (fase 2). */
+  juego: { clave: string; nombre: string; descripcion: string } | null;
   evaluacion_disponible: boolean;
+};
+
+export type CartaHito = { hito_id: string; codigo: string; titulo: string };
+
+export type LineaRepartida = {
+  juego: string;
+  dimension: string;
+  cartas: CartaHito[];
+};
+
+export type ResultadoLinea = {
+  total: number;
+  en_su_lugar: number;
+  pares_correctos: number;
+  pares_totales: number;
+  linea_perfecta: boolean;
+  puntos: number;
+  xp_otorgado: number;
+  ya_jugado_hoy: boolean;
+  revelacion: {
+    hito_id: string;
+    codigo: string;
+    titulo: string;
+    ruta: "autoevaluacion" | "acreditacion" | string;
+    anio: number;
+    periodo_texto: string;
+    puesto_en: number;
+    posicion_real: number;
+    acerto: boolean;
+  }[];
 };
 
 export type OpcionDecision = { clave: string; texto: string };
@@ -304,6 +336,17 @@ export const api = {
   completarModulo: (id: string) =>
     pedir<{ ya_estaba: boolean; xp_otorgado: number }>(`/modulos/${id}/completar`, {
       method: "POST",
+    }),
+
+  /** D3: seis hitos barajados, SIN su período ni su año. */
+  lineaTiempo: (bloqueRutaId: string) =>
+    pedir<LineaRepartida>(`/bloques-ruta/${bloqueRutaId}/juego/linea-tiempo`),
+
+  /** El cliente manda en qué orden los dejó; corregir es del servidor. */
+  cerrarLinea: (bloqueRutaId: string, orden: string[]) =>
+    pedir<ResultadoLinea>(`/bloques-ruta/${bloqueRutaId}/juego/linea-tiempo/resultado`, {
+      method: "POST",
+      body: JSON.stringify({ orden }),
     }),
 
   /** El caso aplicado de la dimensión crítica. Llega SIN las respuestas correctas. */
